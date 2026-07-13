@@ -1,0 +1,33 @@
+CompileFlags:
+  CompilationDatabase: ./build/Debug
+  Remove:
+    - -Wunused
+    - -Wuninitialized
+    - -Wmissing-declarations
+    - -Wconversion
+    - -Wpointer-arith
+    - -Wshadow
+    - -Waggregate-return
+    - -Wfloat-equal
+    - -Wno-parentheses-equality
+    - -fno-strict-aliasing
+    - -fmessage-length=0
+    - -flax-vector-conversions
+    - -fshort-enums
+    - -fno-unroll-loops
+  Add: []
+  Compiler: null\bin\clang.exe
+Diagnostics:
+  Suppress:
+    - unused-parameter
+    - unused-variable
+    - unused-function
+    - -Wunused*
+Index:
+  Background: Build
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
+Hover:
+  ShowAKA: true

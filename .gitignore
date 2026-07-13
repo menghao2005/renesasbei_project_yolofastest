@@ -1,0 +1,42 @@
+# dot files
+/.vscode/launch.json
+/.settings
+/.eide/log
+/.eide.usr.ctx.json
+
+# project out
+/build/
+/bin/
+/obj/
+/out/
+/Debug/
+/Release/
+
+# object / dependency / generated makefiles
+*.o
+*.d
+*.in
+
+# binaries & linker output
+*.elf
+*.srec
+*.map
+
+# e2 studio secure / build databases
+*.secure_rzone
+*.secure_xml
+*.secure_azone
+*.sbd
+*.cref
+*.rpd
+
+# logs
+JLinkLog.log
+*.log
+
+# temp / working files
+/tmp_pdf_read/
+
+# eide template
+*.ept
+*.eide-template
