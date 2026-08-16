@@ -49,6 +49,10 @@ extern uint32_t DWT_count_to_us(uint32_t delta_count);
 
 #define HARVEST_TREE_GRIPPER_OPEN_US                  (900U)
 #define HARVEST_TREE_GRIPPER_CLOSE_US                 (1400U)
+#define HARVEST_TREE_HOME_BASE_US                   (1500U)
+#define HARVEST_TREE_HOME_UPPER_US                  (1640U)
+#define HARVEST_TREE_HOME_FOREARM_US                (2400U)
+#define HARVEST_TREE_HOME_MOVE_MS                   (4000U)
 #define HARVEST_TREE_FIXED_MOVE_MS                    (ROBOT_ARM_DEFAULT_MOVE_MS)
 #define HARVEST_TREE_APPROACH_MOVE_MS                 (1000U)
 #define HARVEST_TREE_CLOSE_MOVE_MS                    (1500U)
@@ -148,6 +152,7 @@ static harvest_task_state_t g_harvest_task_state;
 static uint32_t g_detect_wait_start_count;
 static uint32_t g_detect_valid_frames;
 static uint32_t g_tree_grab_index;
+static bool     g_harvest_done_homed;   /* home move registered once */
 static robot_arm_tree_grab_config_t g_tree_grab_config_work;
 
 static uint16_t harvest_tree_add_delta_us(uint16_t pulse_us, int32_t delta_us)
@@ -437,6 +442,7 @@ void HarvestTask_Init(void)
     g_detect_wait_start_count = DWT_get_count();
     g_detect_valid_frames = 0U;
     g_tree_grab_index = 0U;
+    g_harvest_done_homed = false;
 }
 
 void HarvestTask_Service(const ai_detection_t * p_dets, uint32_t num_dets)
@@ -659,6 +665,18 @@ void HarvestTask_Service(const ai_detection_t * p_dets, uint32_t num_dets)
             break;
 
         case HARVEST_TASK_DONE:
+            /* 4 个位置抓完：机械臂归位（上电默认姿态，4s 平滑，爪子松开） */
+            if (!g_harvest_done_homed)
+            {
+                g_harvest_done_homed = true;
+                RobotArm_MoveToWristDownTime(HARVEST_TREE_HOME_BASE_US,
+                                             HARVEST_TREE_HOME_UPPER_US,
+                                             HARVEST_TREE_HOME_FOREARM_US,
+                                             HARVEST_TREE_GRIPPER_OPEN_US,
+                                             HARVEST_TREE_HOME_MOVE_MS);
+            }
+            break;
+
         default:
             break;
     }
