@@ -1,5 +1,6 @@
 #include "bottom_banner.h"
 
+#define BOTTOM_LOGO_IMPLEMENT
 #include "bottom_logo_data.h"
 #include "font_8x8.h"
 #include "renesas_logo_data.h"

@@ -54,7 +54,7 @@
 #define AUTO_BTN_MODE_Y     (484)
 #define AUTO_BTN_MODE_W     (104)
 #define AUTO_BTN_MODE_H     (40)
-#define AUTO_BTN_START_X    (288)
+#define AUTO_BTN_START_X    (304)
 #define AUTO_BTN_START_Y    (544)
 #define AUTO_BTN_START_W    (160)
 #define AUTO_BTN_START_H    (48)

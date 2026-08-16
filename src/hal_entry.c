@@ -314,10 +314,10 @@ void hal_entry(void)
                   fb, (int)g_hstride, fb_w, fb_h, 468, 476, 12, 52);
               graphics_blit_scale_region(p_display_frame, 640, 480, 0, 392, 640, 10,
                   fb, (int)g_hstride, fb_w, fb_h, 0, 528, 480, 12);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 402, 379, 43,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 540, 284, 56);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 603, 402, 37, 43,
-                  fb, (int)g_hstride, fb_w, fb_h, 452, 540, 28, 56);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 402, 400, 43,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 540, 300, 56);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 624, 402, 16, 43,
+                  fb, (int)g_hstride, fb_w, fb_h, 468, 540, 12, 56);
               graphics_blit_scale_region(p_display_frame, 640, 480, 0, 445, 640, 35,
                   fb, (int)g_hstride, fb_w, fb_h, 0, 596, 480, 44);
           }
