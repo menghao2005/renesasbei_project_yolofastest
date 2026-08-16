@@ -655,7 +655,7 @@ const iic_master_extended_cfg_t g_i2c_master0_extend =
   .clock_settings.sddl_value = 0,
   .clock_settings.dlcs_value = 0, };
 const i2c_master_cfg_t g_i2c_master0_cfg =
-{ .channel = 0, .rate = I2C_MASTER_RATE_STANDARD, .slave = 0x00, .addr_mode = I2C_MASTER_ADDR_MODE_7BIT,
+{ .channel = 0, .rate = I2C_MASTER_RATE_FAST, .slave = 0x00, .addr_mode = I2C_MASTER_ADDR_MODE_7BIT,
 #define RA_NOT_DEFINED (1)
 #if (RA_NOT_DEFINED == RA_NOT_DEFINED)
   .p_transfer_tx = NULL,
