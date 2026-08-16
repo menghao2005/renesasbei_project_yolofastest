@@ -215,7 +215,7 @@ void hal_entry(void)
     uint8_t * p_camera_buffers[2] = { g_image_vga_sdram[0], g_image_vga_sdram[1] };
     uint32_t frame_index_display = 0U;
     uint32_t frame_index_capture = 1U;
-    uint32_t s_no_frame_ticks = 0U;   /* 连续无相机帧轮数（~16.7ms/轮，断流检测） */
+    uint32_t s_last_frame_cyc = 0U;   /* 最近一次相机帧处理时刻（DWT，断流检测，2s） */
     uint32_t s_prev_frame_end_cyc = 0U;  /* 上一帧处理完成时的 DWT 周期（真实帧率测量） */
     int8_t *p_model_input = GetModelInputPtr_serving_default_images_0();
     int8_t *p_model_p4    = GetModelOutputPtr_PartitionedCall_0_70298();
@@ -233,11 +233,23 @@ void hal_entry(void)
         return;
     }
 
-    err = ceu_capture_wait(&ceu_used, 2000U);
+    /* 首帧等待：5s 超时后重试一次 kick+wait，仍失败则继续进主循环（断流自愈兜底）。
+     * 绝不 return——return 后主循环不跑，系统卡死无画面。 */
+    err = ceu_capture_wait(&ceu_used, 5000U);
     if (FSP_SUCCESS != err)
     {
-        printf("CEU initial capture wait failed: %d\r\n", (int) err);
-        return;
+        printf("CEU initial wait: %d, retry capture\r\n", (int) err);
+        prepare_camera_capture_buffer(p_camera_buffers[frame_index_display]);
+        err = ceu_capture_start(p_camera_buffers[frame_index_display]);
+        if (FSP_SUCCESS != err)
+        {
+            printf("CEU initial kick failed: %d\r\n", (int) err);
+        }
+        err = ceu_capture_wait(&ceu_used, 5000U);
+        if (FSP_SUCCESS != err)
+        {
+            printf("CEU initial wait retry failed: %d, continue to main loop\r\n", (int) err);
+        }
     }
 
     /*
@@ -256,7 +268,7 @@ void hal_entry(void)
           if (g_capture_ready)
           {
               g_capture_ready = false;
-              s_no_frame_ticks = 0U;
+              s_last_frame_cyc = DWT_get_count();
 
           pipeline_profile_t pipe_profile = {0};
           uint32_t stage_start = 0U;
@@ -272,8 +284,10 @@ void hal_entry(void)
           /* 先 kick 下一帧采集（与当前帧的 blit/AI 处理重叠，保持 8fps 流水线） */
           frame_index_display ^= 1U;
           frame_index_capture ^= 1U;
+          stage_start = pipeline_profile_measure_begin();
           prepare_camera_capture_buffer(p_capture_frame);
           err = ceu_capture_start(p_capture_frame);
+          pipe_profile.ceu_kick_us = pipeline_profile_measure_end(stage_start);
           if (FSP_SUCCESS != err)
           {
               printf("CEU capture start failed: %d\r\n", (int) err);
@@ -380,9 +394,12 @@ void hal_entry(void)
           pipe_profile.total_us = pipeline_profile_measure_end(loop_start);
           pipeline_profile_print_every(&pipe_profile);
           }
-          else if (++s_no_frame_ticks >= 120U)   /* ~2s 无帧：CEU 断流自愈（换同步配置 + 重开） */
+          /* 断流自愈：距上次"帧或 recover"≥2s 才触发。首帧前 s_last_frame_cyc=0
+           * 首次会立即触发（recover 救活启动期 CEU），recover 重置计时 → 限速 2s/次，
+           * 不再每轮（<1ms）疯狂触发刷屏 */
+          else if (DWT_count_to_us(DWT_get_count() - s_last_frame_cyc) >= 2000000U)
           {
-              s_no_frame_ticks = 0U;
+              s_last_frame_cyc = DWT_get_count();   /* 重置计时：限速 recover */
               ceu_recover();
               /* reopen 后 CEU 空闲：直接重新 kick 当前采集缓冲 */
               prepare_camera_capture_buffer(p_camera_buffers[frame_index_capture]);
@@ -393,13 +410,18 @@ void hal_entry(void)
               }
           }
 
-          /* UI 浮层每轮重绘（60Hz 跟手，与相机帧率解耦；相机断流时 UI 不冻结） */
-          ui_control_draw_overlay();
+          /* UI 浮层重绘：DWT 节流 ~15ms。原 wait_vsync 阻塞等 60Hz（每轮 16.7ms 粒度）
+           * 导致相机 kick 延迟 0-16.7ms，总错过传感器 VSYNC → CEU 隔帧采集、
+           * 帧率减半（实测 7.2 -> 3.15fps）。去掉阻塞等待后主循环自由轮询 <1ms，
+           * kick 延迟 <1ms，赶上 VSYNC 帧率恢复。触摸为 INT 驱动，不受影响。 */
+          static uint32_t s_last_overlay_cyc = 0U;
+          uint32_t now_cyc = DWT_get_count();
+          if (DWT_count_to_us(now_cyc - s_last_overlay_cyc) >= 8000U)
+          {
+              s_last_overlay_cyc = now_cyc;
+              ui_control_draw_overlay();
+          }
           __DSB();
-
-          /* 60Hz 节奏：等待 GLCDC vsync（无相机帧时也等，保持触摸采样稳定） */
-          g_vsync_flag = RESET_FLAG;
-          wait_vsync_with_timeout(1000U);
     }
 
     /* Wake up 2nd core if this is first core and we are inside a multicore project. */

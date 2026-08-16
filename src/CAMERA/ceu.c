@@ -158,20 +158,34 @@ static void ceu_print_event(ceu_event_t event)
 
 static void ceu_reopen_after_timeout(void)
 {
+    static uint32_t s_recover_count = 0U;
     fsp_err_t close_err = R_CEU_Close(&g_ceu_vga_ctrl);
-    printf("CEU recover: close=%d\r\n", close_err);
+    fsp_err_t open_err = FSP_ERR_NOT_OPEN;
+    s_recover_count++;
+    /* 打印降频：前 3 次全打（启动诊断），之后每 10 次打一次（防刷屏） */
+    bool print_recover = (s_recover_count <= 3U) || (0U == (s_recover_count % 10U));
+    if (print_recover)
+    {
+        printf("CEU recover: close=%d\r\n", close_err);
+    }
 
     if ((FSP_SUCCESS == close_err) || (FSP_ERR_NOT_OPEN == close_err))
     {
-        fsp_err_t open_err = R_CEU_Open(&g_ceu_vga_ctrl, &g_ceu_vga_cfg);
-        printf("CEU recover: open=%d\r\n", open_err);
+        open_err = R_CEU_Open(&g_ceu_vga_ctrl, &g_ceu_vga_cfg);
+        if (print_recover)
+        {
+            printf("CEU recover: open=%d\r\n", open_err);
+        }
+        /* Open 会用 cfg 默认 CAMCR 覆盖同步极性——必须重新应用 index 0
+         * （实测有效极性），否则 recover 后同步错乱 → 帧不来 → 循环 recover 刷屏 */
+        ceu_apply_sync_try();
     }
 }
 
-/* 断流自愈：主循环检测到长时间无帧时调用（换同步配置 + 重开 CEU） */
+/* 断流自愈：主循环检测到长时间无帧时调用（只重开 CEU 清状态，不换同步极性——
+ * index 0 是实测有效极性，换极性会掉帧率） */
 void ceu_recover(void)
 {
-    ceu_advance_sync_try();
     ceu_reopen_after_timeout();
 }
 /*******************************************************************************************************************//**
@@ -283,7 +297,8 @@ static fsp_err_t ceu_wait_for_capture_complete(uint32_t *used_ms, uint32_t timeo
                    (unsigned long) R_CEU->CDWDR,
                    (unsigned long) R_CEU->CDSSR);
             ceu_print_event(g_ceu_last_event);
-            ceu_advance_sync_try();
+            /* 不 advance 极性：index 0（HDPOL=0 VDPOL=0）是实测有效极性（队友基线 7.2fps），
+             * 换到 index 1+ 会导致出帧率掉到 3.15fps（VDPOL=1 同步慢）。只 reopen 清状态。 */
             ceu_reopen_after_timeout();
             if (NULL != used_ms)
             {
@@ -306,7 +321,7 @@ static fsp_err_t ceu_wait_for_capture_complete(uint32_t *used_ms, uint32_t timeo
                (unsigned long) g_ceu_frame_end_count,
                (unsigned long) g_ceu_error_count);
         g_capture_ready = false;
-        ceu_advance_sync_try();
+        /* 保持 index 0（有效极性），不 advance */
         if (NULL != used_ms)
         {
             *used_ms = timeout_ms - wait_budget_ms;
@@ -327,9 +342,10 @@ fsp_err_t ceu_capture_start(uint8_t * const p_buffer)
 {
     g_capture_ready = false;
     g_ceu_last_event = CEU_EVENT_NONE;
-    /* 注意：不在此处轮换同步极性（ceu_apply_sync_try）——每帧换一次会造成 CEU
-     * 同步配置抖动（HD/VD 极性不匹配 → 错误帧/丢帧，画面卡顿花屏）。
-     * 极性仅在 ceu_init（启动）与 ceu_recover（断流自愈）时轮换。 */
+    /* 每帧轮换同步极性（队友基线行为，实测 8fps）：
+     * v3 曾改为固定 index 0 → 出帧率掉到 3.65fps（待验证是否极性所致）。
+     * 轮换让 CEU 每帧重新配置同步极性，与队友 (6).zip 行为一致。 */
+    ceu_apply_sync_try();
 
     return R_CEU_CaptureStart(&g_ceu_vga_ctrl, p_buffer);
 }
