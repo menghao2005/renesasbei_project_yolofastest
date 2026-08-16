@@ -301,13 +301,13 @@ void hal_entry(void)
           stage_start = pipeline_profile_measure_begin();
           if (is_auto)
           {
-                          /* 目标带 y28-600（572 行）↔ 源 640x480：x 0.75, y 1.1917。
+                          /* 目标带 y0-600（600 行）↔ 源 640x480：x 0.75, y 1.25。
                * y600-640 为控制条（模式/开始/灯光 同排）：整行跳过不显示相机，
                * 按钮不被相机帧覆盖 -> 零闪。 */
               const int fb_w = 480, fb_h = 800;
               uint8_t * fb = gp_frame_buffer;
               graphics_blit_scale_region(p_display_frame, 640, 480, 0, 0, 640, 480,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 28, 480, 572);
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 0, 480, 600);
           }
           else
           {
@@ -323,9 +323,6 @@ void hal_entry(void)
           if (is_auto)
           {
               ai_draw_detections(detections_committed, num_detections_committed);
-              /* 每帧 blit+画框后重绘品牌条（8fps 节奏）：清除任何检测框/标签
-               * 残留污染（品牌条 y0-28 不被 blit 覆盖，不重绘会永久残留） */
-              ui_control_draw_brand_bar();
           }
           ui_control_set_detection_count(num_detections_committed);
           pipe_profile.draw_us = pipeline_profile_measure_end(stage_start);
@@ -334,27 +331,6 @@ void hal_entry(void)
           /* blit 覆盖了品牌条/按钮：立即重绘浮层（覆盖瞬间恢复，防闪烁） */
           ui_control_draw_overlay();
 
-          /* 品牌条只绘制一次（ui_control_init 时）。以下一次性诊断验证
-           * blit 是否越界污染金字区（y0-28）：x240/y10 为品牌条深蓝背景，
-           * 若被相机帧覆盖则打印 CORRUPTED。 */
-          if (is_auto)
-          {
-              static bool s_brand_checked = false;
-              if (!s_brand_checked)
-              {
-                  s_brand_checked = true;
-                  uint16_t * p_fb = (uint16_t *) gp_frame_buffer;
-                  uint16_t v = p_fb[(uint32_t) 10 * (uint32_t) g_hstride + 240U];
-                  if ((0x0907U == v) || (0xFBE0U == v))
-                  {
-                      printf("[BRAND] OK, untouched by blit (0x%04X)\r\n", (unsigned) v);
-                  }
-                  else
-                  {
-                      printf("[BRAND] CORRUPTED by blit! pixel=0x%04X\r\n", (unsigned) v);
-                  }
-              }
-          }
 
           /* AI 推理仅 AUTO 模式执行（REMOTE 跳过，保证摇杆响应流畅） */
           if (is_auto)

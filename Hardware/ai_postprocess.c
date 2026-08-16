@@ -543,7 +543,7 @@ void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
 
         /* 裁剪到 fb 上摄像头有效显示区域 (0~480, 0~600) */
         if (x0 < 0) x0 = 0;
-        if (y0 < 28) y0 = 28;  /* brand bar (y0-28) protection: box never enters it */
+        if (y0 < 0) y0 = 0;
         if (x1 > FB_CAM_W) x1 = FB_CAM_W;
         if (y1 > FB_CAM_H) y1 = FB_CAM_H;
         /* 控制条顶 (y600) 之上才显示相机：检测框不画进控制条 */
@@ -589,7 +589,7 @@ void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
             int label_h = 16 * 2;             /* 32px high */
             int lx = x0;
             int ly = y0 - label_h - 2;       /* 2px above box */
-            if (ly < 28) { ly = (y0 + 2 >= 28) ? (y0 + 2) : 28; }  /* box top may itself be <28: clamp to bar bottom */
+            if (ly < 0) ly = 0;
             int fill_x = (lx < 0) ? 0 : lx;
             int fill_w = (lx + label_w > FB_CAM_W) ? (FB_CAM_W - fill_x) : (label_w - (fill_x - lx));
             if (fill_w > 0) {

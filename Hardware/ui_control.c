@@ -46,23 +46,20 @@
 #define UI_SCREEN_W         (480)
 #define UI_SCREEN_H         (800)
 
-/* 品牌条（两个界面都有，y 0-27） */
-#define UI_BRAND_H          (28)
-
-/* --- AUTO 界面（品牌条 + 相机画面 y 28-640 + banner） --- */
-#define AUTO_CAM_Y          (UI_BRAND_H)     /* 相机画面起点（品牌条下方） */
-#define AUTO_CAM_H          (612)            /* 相机画面高度（到 banner 上沿） */
-#define AUTO_BTN_MODE_X     (360)
-#define AUTO_BTN_MODE_Y     (484)
-#define AUTO_BTN_MODE_W     (104)
+/* 无品牌条：相机画面从 y0 开始 */
+#define AUTO_CAM_Y          (0)              /* AUTO 相机画面起点 */
+#define AUTO_CAM_H          (600)            /* AUTO 相机画面高度（到控制条上沿） */
+#define AUTO_BTN_MODE_X     (12)
+#define AUTO_BTN_MODE_Y     (600)
+#define AUTO_BTN_MODE_W     (144)
 #define AUTO_BTN_MODE_H     (40)
-#define AUTO_BTN_START_X    (304)
-#define AUTO_BTN_START_Y    (544)
-#define AUTO_BTN_START_W    (160)
-#define AUTO_BTN_START_H    (48)
+#define AUTO_BTN_START_X    (168)
+#define AUTO_BTN_START_Y    (600)
+#define AUTO_BTN_START_W    (144)
+#define AUTO_BTN_START_H    (40)
 
 /* --- REMOTE 界面 --- */
-#define RMT_CAM_Y           (UI_BRAND_H)     /* 相机小窗 y 28-388 */
+#define RMT_CAM_Y           (0)              /* 相机小窗 y 0-360 */
 #define RMT_CAM_H           (360)
 #define RMT_PANEL_Y         (392)            /* 控制面板 y 392-800 */
 #define RMT_PANEL_H         (UI_SCREEN_H - RMT_PANEL_Y)
@@ -100,7 +97,7 @@
 #define RMT_OPEN_H          (64)
 
 #define RMT_HUD_X           (14)
-#define RMT_HUD_Y           (UI_BRAND_H + 12)
+#define RMT_HUD_Y           (12)
 
 /* ------------------------------------------------------------------------- */
 /* 颜色（RGB565，均为 16 位正确值）——浅蓝灰精致科技风                         */
@@ -150,9 +147,9 @@
 
 /* 补光灯按钮（P109 高电平亮） */
 #define AUTO_LIGHT_X       (324)
-#define AUTO_LIGHT_Y       (604)
+#define AUTO_LIGHT_Y       (600)
 #define AUTO_LIGHT_W       (144)
-#define AUTO_LIGHT_H       (32)
+#define AUTO_LIGHT_H       (40)
 
 /* AUTO 控制条（y600-640）：三按钮同排深色底，整行不显示相机 */
 #define AUTO_CTRL_Y        (600)
@@ -570,19 +567,6 @@ static const char * ui_power_label(ui_power_t power)
 }
 
 /* ------------------------------------------------------------------------- */
-/* 品牌条（两个界面共用，y 0-27）：金字标题                                   */
-/* ------------------------------------------------------------------------- */
-static void ui_draw_brand_bar(void)
-{
-    ui_fill_rect(0, 0, UI_SCREEN_W, UI_BRAND_H, UI_COLOR_BRAND_BG);
-    ui_fill_rect(0, UI_BRAND_H - 1, UI_SCREEN_W, 1, UI_COLOR_GOLD);
-
-    /* 品牌条不绘制瑞萨 logo 位图（用户要求 2026-08-15）；文字左移 */
-    ui_draw_string(12, 6, "RENESAS CUP 2026", UI_COLOR_GOLD, 2);
-    ui_draw_string(UI_SCREEN_W - 10 - 5 * 8 * 2, 6, "NUEDC", UI_COLOR_GOLD, 2);
-}
-
-/* ------------------------------------------------------------------------- */
 /* AUTO 界面按钮：MODE（切换时画，顶部不被 blit 覆盖）+ START（每帧画）         */
 /* ------------------------------------------------------------------------- */
 static void ui_draw_mode_btn(void)
@@ -736,14 +720,12 @@ static void ui_redraw_screen(void)
 {
     if (UI_MODE_REMOTE == g_mode)
     {
-        ui_draw_brand_bar();
         ui_draw_remote_panel();
     }
     else
     {
         /* 原工程 banner 渐变 + 瑞萨/电赛 logo（无按钮） */
         bottom_banner_draw(ui_fb(), g_hstride);
-        ui_draw_brand_bar();
         ui_draw_auto_ctrl_bar();
     }
     __DSB();
@@ -1148,8 +1130,7 @@ void ui_control_service(void)
 
 /* 每轮在相机 blit 之后调用：重绘被覆盖/变化的浮层。
  * REMOTE：每轮只重绘摇杆区（摇杆头 60Hz 跟随；面板其余部分状态变化时才全量画）；
- * AUTO：MODE + START 按钮。品牌条不在此重绘（60Hz 全量重绘会撕裂闪烁，
- * 改为相机帧处理时由 hal_entry 调 ui_control_draw_brand_bar，8fps 频率不可见）。 */
+ * AUTO：控制条三按钮（模式/开始/灯光）。 */
 void ui_control_draw_overlay(void)
 {
     if (UI_MODE_REMOTE == g_mode)
@@ -1165,14 +1146,6 @@ void ui_control_draw_overlay(void)
     {
         ui_draw_auto_ctrl_bar();
     }
-    __DSB();
-}
-
-/* 品牌条（金字 RENESAS CUP 2026 + NUEDC）：相机帧 blit 后调用（8fps），
- * 防 blit 边缘覆盖残留；不在 60Hz overlay 里重绘（会撕裂闪烁） */
-void ui_control_draw_brand_bar(void)
-{
-    ui_draw_brand_bar();
     __DSB();
 }
 
