@@ -142,9 +142,9 @@
 #define UI_REMOTE_FOREARM_MIN   (1980U)
 #define UI_REMOTE_FOREARM_MAX   (2460U)
 #define UI_REMOTE_GRIPPER_US    (900U)
-#define UI_REMOTE_STEP_BASE     (20)    /* 分辨率减半：防急转 */
-#define UI_REMOTE_STEP_UPPER    (12)
-#define UI_REMOTE_STEP_FOREARM  (15)
+#define UI_REMOTE_STEP_BASE     (10)    /* 分辨率再减半：更细节 */
+#define UI_REMOTE_STEP_UPPER    (6)
+#define UI_REMOTE_STEP_FOREARM  (8)
 #define UI_REMOTE_MOVE_MS       (80U)   /* 节流间隔 + 插值时长 */
 
 /* 车库位（与 RobotArm_Init 的初始脉冲一致） */
@@ -889,14 +889,14 @@ static void ui_joy_apply(void)
         forearm += UI_REMOTE_STEP_FOREARM;
     }
 
-    /* X 轴：左=底座左转，右=底座右转 */
+    /* X 轴（已反转）：左=底座右转，右=底座左转 */
     if (dx < -RMT_JOY_DEAD)
     {
-        base -= UI_REMOTE_STEP_BASE;
+        base += UI_REMOTE_STEP_BASE;
     }
     else if (dx > RMT_JOY_DEAD)
     {
-        base += UI_REMOTE_STEP_BASE;
+        base -= UI_REMOTE_STEP_BASE;
     }
 
     if (base < (int32_t) UI_REMOTE_BASE_MIN)
@@ -939,11 +939,11 @@ static void ui_gripper_grasp(void)
                                  1350U, 300U);
 }
 
-/* 打开爪子（gripper 0us） */
+/* 打开爪子（gripper 500us，开角调小） */
 static void ui_gripper_open(void)
 {
     RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                 0U, 300U);
+                                 500U, 300U);
 }
 
 /* ------------------------------------------------------------------------- */

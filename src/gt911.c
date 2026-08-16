@@ -50,8 +50,6 @@ volatile uint16_t g_st7123_touch_x = 0U;
 volatile uint16_t g_st7123_touch_y = 0U;
 
 static fsp_err_t st7123_i2c_read(uint16_t reg, uint8_t *buf, uint32_t len);
-static fsp_err_t st7123_i2c_write(uint16_t reg, const uint8_t *buf, uint32_t len);
-static void st7123_i2c_recover(void);
 static uint8_t st7123_parse_report(const uint8_t *report, coord_t *points, uint32_t num_points);
 
 /*******************************************************************************************************************//**
@@ -144,22 +142,6 @@ fsp_err_t st7123_touch_irq_init(void)
 
 /* IIC 控制器复位：触摸连续失败（总线残留/状态机卡死）时调用，Close+Open 重开。
  * IIC0 与 OV5640 共用，但 OV5640 仅在启动时配置，运行中复位安全。 */
-static void st7123_i2c_recover(void)
-{
-    fsp_err_t close_err = R_IIC_MASTER_Close(&g_i2c_master0_ctrl);
-    fsp_err_t open_err  = R_IIC_MASTER_Open(&g_i2c_master0_ctrl, &g_i2c_master0_cfg);
-    printf("ST7123 I2C recover: close=%d open=%d\r\n", (int) close_err, (int) open_err);
-
-    /* ST7123 软复位（GT911 协议 0x8040）：MCU 侧 Close/Open 复位不了控制器内部
-     * 状态机（总线残留时读也失败）——软复位让控制器重新就绪。写失败无妨，
-     * 下次读仍失败会再触发 recover。 */
-    uint8_t rst = 0x01U;
-    (void) st7123_i2c_write(0x8040U, &rst, 1U);
-    R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MILLISECONDS);
-    rst = 0x00U;
-    (void) st7123_i2c_write(0x8040U, &rst, 1U);
-    R_BSP_SoftwareDelay(5, BSP_DELAY_UNITS_MILLISECONDS);
-}
 
 /*******************************************************************************************************************//**
  *  @brief       Touch service task used by the bare-metal main loop.
@@ -180,28 +162,15 @@ void st7123_touch_irq_print_task(void)
     fsp_err_t err = st7123_get_status(&status, touch_coordinates, ST7123_MAX_TOUCH_POINTS);
     if (FSP_SUCCESS != err)
     {
-        /* I2C 偶发超时（ST7123 拉伸 SCL / 总线瞬时忙）：重试两次自愈 */
-        err = st7123_get_status(&status, touch_coordinates, ST7123_MAX_TOUCH_POINTS);
-    }
-    if (FSP_SUCCESS != err)
-    {
-        err = st7123_get_status(&status, touch_coordinates, ST7123_MAX_TOUCH_POINTS);
-    }
-    if (FSP_SUCCESS != err)
-    {
-        /* 连续失败（阈值 2）：IIC 控制器状态机可能卡死（总线电平残留），Close+Open 复位 */
-        if (++g_st7123_fail_count >= 5U)
-        {
-            g_st7123_fail_count = 0U;
-            st7123_i2c_recover();
-        }
-        if (1U == (g_st7123_fail_count % 25U))
+        /* 裸读（验证基线）：不重试不 recover干预——ST7123 慢响应/瞬时忙由 100ms I2C 超时兜底；持续失败只降频打印。 */
+        if ((++g_st7123_fail_count % 25U) == 1U)
         {
             printf("ST7123 touch read fail: %d\r\n", (int) err);
         }
         return;
     }
     g_st7123_fail_count = 0U;
+
 
     g_st7123_touch_count = 0U;
     g_st7123_touch_x = 0U;
