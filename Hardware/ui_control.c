@@ -503,6 +503,21 @@ static void ui_draw_button(int x, int y, int w, int h,
 /* ------------------------------------------------------------------------- */
 /* 状态文字                                                                   */
 /* ------------------------------------------------------------------------- */
+/* 状态徽章文案（REMOTE 中间徽章） */
+static const char * ui_state_label(ui_power_t power)
+{
+    switch (power)
+    {
+        case UI_POWER_ON:
+            return "控制运行中";   /* 运行中 */
+        case UI_POWER_LOCKED:
+            return "控制停止中";   /* 停止中 */
+        case UI_POWER_OFF:
+        default:
+            return "控制待机";   /* 待机 */
+    }
+}
+
 static uint16_t ui_power_color(ui_power_t power)
 {
     switch (power)
@@ -662,7 +677,7 @@ static void ui_draw_remote_panel(void)
     ui_draw_panel(RMT_STATE_X, RMT_STATE_Y - 4, RMT_STATE_W, RMT_STATE_H + 8,
                   UI_COLOR_CARD, UI_COLOR_BORDER);
     ui_draw_string_centered(RMT_STATE_X + RMT_STATE_W / 2, RMT_STATE_Y + 12,
-                            ui_power_label(g_power), ui_power_color(g_power), 2);
+                            ui_state_label(g_power), ui_power_color(g_power), 2);
 
     ui_draw_button(RMT_LOCK_X, RMT_LOCK_Y, RMT_LOCK_W, RMT_LOCK_H,
                    ui_power_label(g_power), 2, (UI_HIT_LOCK == g_touch_last),
