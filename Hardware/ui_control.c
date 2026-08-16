@@ -665,7 +665,7 @@ static void ui_draw_remote_panel(void)
                             ui_power_label(g_power), ui_power_color(g_power), 2);
 
     ui_draw_button(RMT_LOCK_X, RMT_LOCK_Y, RMT_LOCK_W, RMT_LOCK_H,
-                   "锁定", 2, (UI_HIT_LOCK == g_touch_last),
+                   ui_power_label(g_power), 2, (UI_HIT_LOCK == g_touch_last),
                    UI_COLOR_RED_D,
                    UI_COLOR_RED, UI_COLOR_RED_D, 0xFFFFU);
 
@@ -779,6 +779,7 @@ static void ui_toggle_power(void)
             g_power = UI_POWER_ON;
             if (UI_MODE_AUTO == g_mode)
             {
+                RobotArm_SetPaused(false);   /* 防遥控 LOCKED 残留导致启动后机械臂停滞 */
                 if (!g_harvest_started)
                 {
                     HarvestTask_Init();
@@ -829,11 +830,8 @@ static void ui_toggle_mode(void)
     else
     {
         g_mode = UI_MODE_AUTO;
-        if ((UI_POWER_ON == g_power) && !g_harvest_started)
-        {
-            HarvestTask_Init();
-            g_harvest_started = true;
-        }
+        /* 回 AUTO 待机：不自动启动流程，舵机保持遥控姿态（防大幅跳变）；用户按开始才启动。 */
+        g_power = UI_POWER_OFF;
     }
 
     ui_redraw_screen();
