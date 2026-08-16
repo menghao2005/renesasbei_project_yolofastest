@@ -59,8 +59,8 @@
 #define AUTO_BTN_START_H    (40)
 
 /* --- REMOTE 界面 --- */
-#define RMT_CAM_Y           (0)              /* 相机小窗 y 0-360 */
-#define RMT_CAM_H           (360)
+#define RMT_CAM_Y           (0)              /* 相机小窗 y 0-392（直达面板上沿） */
+#define RMT_CAM_H           (392)
 #define RMT_PANEL_Y         (392)            /* 控制面板 y 392-800 */
 #define RMT_PANEL_H         (UI_SCREEN_H - RMT_PANEL_Y)
 
@@ -1115,37 +1115,39 @@ void ui_control_service(void)
         ui_gripper_open();
     }
 
-    /* 触摸状态变化时刷新按钮高亮（REMOTE 面板在 blit 区外，按下时重画一次；
-     * AUTO 的 START 高亮由 ui_control_draw_overlay 每帧完成） */
+    /* 触摸状态变化时刷新按钮高亮（两个界面的按钮都在 blit 区外，
+     * 按下/释放瞬间重画一次；按住期间不重绘 -> 不频闪） */
     if (hit != g_touch_last)
     {
         g_touch_last = hit;
         if (UI_MODE_REMOTE == g_mode)
         {
             ui_draw_remote_panel();
-            __DSB();
         }
+        else
+        {
+            ui_draw_auto_ctrl_bar();
+        }
+        __DSB();
     }
 }
 
 /* 每轮在相机 blit 之后调用：重绘被覆盖/变化的浮层。
  * REMOTE：每轮只重绘摇杆区（摇杆头 60Hz 跟随；面板其余部分状态变化时才全量画）；
- * AUTO：控制条三按钮（模式/开始/灯光）。 */
+ * AUTO：控制条（y600-640）整行被 blit 跳过，相机帧不覆盖 -> 无需每轮重绘，
+ * 只在触摸状态变化时由 ui_control_service 重绘（防 8ms 高频重绘频闪）。 */
 void ui_control_draw_overlay(void)
 {
     if (UI_MODE_REMOTE == g_mode)
     {
         /* 仅操作中重绘摇杆区（拖动跟随）；未操作时摇杆头在中心且相机小窗
-         * （y28-388）不覆盖摇杆区（y620）——无需每轮全画白底座（消除刷新闪烁感） */
+         * （y0-392）不覆盖摇杆区（y620）——无需每轮全画白底座（消除刷新闪烁感） */
         if (UI_HIT_JOY == g_touch_last)
         {
             ui_draw_joy_area();
         }
     }
-    else
-    {
-        ui_draw_auto_ctrl_bar();
-    }
+    /* AUTO：控制条在 blit 区外且不被相机帧覆盖，无需每轮重绘 */
     __DSB();
 }
 
