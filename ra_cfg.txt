@@ -2275,7 +2275,7 @@ FSP Configuration
     Instance "g_i2c_master0 I2C Master (r_iic_master)"
       Name: g_i2c_master0
       Channel: 0
-      Rate: Standard
+      Rate: Fast-mode
       Custom Rate (bps): 0
       Rise Time (ns): 120
       Fall Time (ns): 120

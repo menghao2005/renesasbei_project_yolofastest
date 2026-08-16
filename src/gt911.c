@@ -190,7 +190,7 @@ void st7123_touch_irq_print_task(void)
     if (FSP_SUCCESS != err)
     {
         /* 连续失败（阈值 2）：IIC 控制器状态机可能卡死（总线电平残留），Close+Open 复位 */
-        if (++g_st7123_fail_count >= 2U)
+        if (++g_st7123_fail_count >= 5U)
         {
             g_st7123_fail_count = 0U;
             st7123_i2c_recover();
