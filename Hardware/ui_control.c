@@ -34,6 +34,7 @@
 #include "gt911.h"
 #include "robot_arm.h"
 #include "harvest_task.h"
+#include "hal_data.h"
 #include "Stepping_Motor.h"
 #include "renesas_logo_data.h"
 
@@ -147,6 +148,16 @@
 #define UI_REMOTE_STEP_FOREARM  (8)
 #define UI_REMOTE_MOVE_MS       (80U)   /* 节流间隔 + 插值时长 */
 
+/* 补光灯按钮（P109 高电平亮） */
+#define AUTO_LIGHT_X       (304)
+#define AUTO_LIGHT_Y       (600)
+#define AUTO_LIGHT_W       (160)
+#define AUTO_LIGHT_H       (40)
+#define RMT_LIGHT_X        (308)
+#define RMT_LIGHT_Y        (455)
+#define RMT_LIGHT_W        (164)
+#define RMT_LIGHT_H        (48)
+
 /* 车库位（与 RobotArm_Init 的初始脉冲一致） */
 #define UI_REMOTE_HOME_BASE     (1500U)
 #define UI_REMOTE_HOME_UPPER    (1640U)
@@ -164,13 +175,18 @@ typedef enum e_ui_hit
     UI_HIT_LOCK,        /* REMOTE 右上 */
     UI_HIT_JOY,         /* REMOTE 摇杆区（按住持续控制） */
     UI_HIT_GRASP,       /* 抓取（爪子闭合） */
-    UI_HIT_OPEN         /* 打开爪子 */
+    UI_HIT_OPEN,        /* 打开爪子 */
+    UI_HIT_LIGHT        /* 补光灯开关 */
 } ui_hit_t;
+
+static void ui_light_toggle(void);
+static void ui_draw_light_btn(int x, int y, int w, int h);
 
 static ui_mode_t  g_mode  = UI_MODE_AUTO;
 static ui_power_t g_power = UI_POWER_OFF;
 
 static bool     g_harvest_started = false;
+static bool     g_light_on       = false;   /* 补光灯状态 */
 static ui_hit_t g_touch_last      = UI_HIT_NONE;
 
 
@@ -701,6 +717,9 @@ static void ui_draw_remote_panel(void)
                    "松开", 2, (UI_HIT_OPEN == g_touch_last), UI_COLOR_BLUE_D,
                    UI_COLOR_BLUE, UI_COLOR_BLUE_D, 0xFFFFU);
 
+    /* 补光灯按钮（GRASP/OPEN 上方） */
+    ui_draw_light_btn(RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H);
+
     /* 面板底部：电赛 NUEDC logo（空白区居中） */
     ui_draw_remote_logo();
 }
@@ -720,6 +739,7 @@ static void ui_redraw_screen(void)
         ui_draw_brand_bar();
         ui_draw_mode_btn();
         ui_draw_start_btn();
+        ui_draw_light_btn(AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H);
     }
     __DSB();
 }
@@ -744,6 +764,10 @@ static ui_hit_t ui_hit_test(uint16_t x, uint16_t y)
         if (ui_point_in_rect(x, y, RMT_LOCK_X, RMT_LOCK_Y, RMT_LOCK_W, RMT_LOCK_H))
         {
             return UI_HIT_LOCK;
+        }
+        if (ui_point_in_rect(x, y, RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H))
+        {
+            return UI_HIT_LIGHT;
         }
         /* 抓取 / 打开 */
         if (ui_point_in_rect(x, y, RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H))
@@ -773,12 +797,39 @@ static ui_hit_t ui_hit_test(uint16_t x, uint16_t y)
     {
         return UI_HIT_START;
     }
+    if (ui_point_in_rect(x, y, AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H))
+    {
+        return UI_HIT_LIGHT;
+    }
     return UI_HIT_NONE;
 }
 
 /* ------------------------------------------------------------------------- */
 /* 状态机动作                                                                 */
 /* ------------------------------------------------------------------------- */
+/* 补光灯开关：翻转 + P109 高/低 */
+static void ui_light_toggle(void)
+{
+    g_light_on = !g_light_on;
+    (void) R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_01_PIN_09,
+                             g_light_on ? BSP_IO_LEVEL_HIGH : BSP_IO_LEVEL_LOW);
+}
+
+/* 补光灯按钮（亮=橙色，灭=灰色） */
+static void ui_draw_light_btn(int x, int y, int w, int h)
+{
+    if (g_light_on)
+    {
+        ui_draw_button(x, y, w, h, "灯光", 2, (UI_HIT_LIGHT == g_touch_last),
+                       UI_COLOR_ORANGE, 0xFFFFU, UI_COLOR_ORANGE, 0xFFFFU);
+    }
+    else
+    {
+        ui_draw_button(x, y, w, h, "灯光", 2, (UI_HIT_LIGHT == g_touch_last),
+                       UI_COLOR_BORDER, 0xFFFFU, UI_COLOR_PANEL_L, UI_COLOR_DARK_TEXT);
+    }
+}
+
 static void ui_remote_reset_to_home(void)
 {
     g_remote_base    = UI_REMOTE_HOME_BASE;
@@ -1019,6 +1070,10 @@ void ui_control_service(void)
     {
         ui_toggle_power();
     }
+    if ((UI_HIT_LIGHT == hit) && (UI_HIT_LIGHT != g_touch_last))
+    {
+        ui_light_toggle();
+    }
 
     /* 摇杆：按住时更新摇杆头位置并持续步进（REMOTE + 运行中） */
     if (UI_HIT_JOY == hit)
@@ -1086,6 +1141,7 @@ void ui_control_draw_overlay(void)
     {
         ui_draw_mode_btn();
         ui_draw_start_btn();
+        ui_draw_light_btn(AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H);
     }
     __DSB();
 }

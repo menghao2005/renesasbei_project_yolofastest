@@ -318,8 +318,12 @@ void hal_entry(void)
                   fb, (int)g_hstride, fb_w, fb_h, 0, 544, 304, 48);
               graphics_blit_scale_region(p_display_frame, 640, 480, 619, 404, 21, 38,
                   fb, (int)g_hstride, fb_w, fb_h, 464, 544, 16, 48);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 442, 640, 38,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 592, 480, 48);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 442, 640, 7,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 592, 480, 8);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 449, 400, 31,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 600, 300, 40);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 624, 449, 16, 31,
+                  fb, (int)g_hstride, fb_w, fb_h, 468, 600, 12, 40);
           }
           else
           {
