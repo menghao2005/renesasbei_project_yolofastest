@@ -24,7 +24,7 @@ extern uint32_t DWT_count_to_us(uint32_t delta_count);
 #define HARVEST_TREE_DETECT_STABLE_FRAMES      (2U)
 
 /* Set to 1 to run the full ground-right/left + drive sequence before tree grab. */
-#define HARVEST_ENABLE_GROUND_SEQUENCE         (0U)
+#define HARVEST_ENABLE_GROUND_SEQUENCE         (1U)
 
 #define HARVEST_GROUND_RIGHT_BASE_US           (1500U - 760U)
 #define HARVEST_GROUND_RIGHT_UPPER_US          (1640U - 180U)
