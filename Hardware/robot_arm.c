@@ -74,6 +74,8 @@ static uint16_t robot_arm_step         = 0U;
 static uint32_t robot_arm_last_cycles  = 0U;
 static volatile bool robot_arm_wrist_down_mode = false;
 static bool     robot_arm_next_move_wrist_down = false;
+static bool     robot_arm_wrist_smooth_once = false;   /* mode switch: wrist interpolates this move */
+static bool     robot_arm_prev_wrist_down_mode = false;
 /* 每步对应�?CPU 周期数（�?SystemCoreClock 推算�?*/
 static uint32_t robot_arm_step_cycles  = 1U;
 
@@ -417,6 +419,10 @@ void RobotArm_MoveToTime(uint16_t base,
 {
     robot_arm_wrist_down_mode = robot_arm_next_move_wrist_down;
     robot_arm_next_move_wrist_down = false;
+
+    /* mode switch: this move interpolates wrist from actual current to target (no jump) */
+    robot_arm_wrist_smooth_once = (robot_arm_wrist_down_mode != robot_arm_prev_wrist_down_mode);
+    robot_arm_prev_wrist_down_mode = robot_arm_wrist_down_mode;
 
     for (uint8_t i = 0U; i < ROBOT_ARM_SERVO_NUM; i++)
     {
@@ -1203,7 +1209,7 @@ void RobotArm_Update(void)
             step_pulse_us[i] = (uint16_t) pulse;
         }
 
-        if (robot_arm_wrist_down_mode)
+        if (robot_arm_wrist_down_mode && !robot_arm_wrist_smooth_once)
         {
             step_pulse_us[3] = RobotArm_CalcWristDownUs(step_pulse_us[1], step_pulse_us[2]);
         }
@@ -1219,7 +1225,7 @@ void RobotArm_Update(void)
 
     if (robot_arm_step >= robot_arm_steps)
     {
-        if (robot_arm_wrist_down_mode)
+        if (robot_arm_wrist_down_mode && !robot_arm_wrist_smooth_once)
         {
             robot_arm_target_us[3] = RobotArm_CalcWristDownUs(robot_arm_target_us[1], robot_arm_target_us[2]);
         }
@@ -1228,6 +1234,7 @@ void RobotArm_Update(void)
         {
             RobotArm_WriteServo(i, robot_arm_target_us[i]);
         }
+        robot_arm_wrist_smooth_once = false;
         robot_arm_moving = false;
     }
 }
