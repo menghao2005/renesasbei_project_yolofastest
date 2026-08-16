@@ -170,13 +170,17 @@ void st7123_touch_irq_print_task(void)
     fsp_err_t err = st7123_get_status(&status, touch_coordinates, ST7123_MAX_TOUCH_POINTS);
     if (FSP_SUCCESS != err)
     {
-        /* I2C 偶发超时（ST7123 拉伸 SCL / 总线瞬时忙）：重试一次自愈 */
+        /* I2C 偶发超时（ST7123 拉伸 SCL / 总线瞬时忙）：重试两次自愈 */
         err = st7123_get_status(&status, touch_coordinates, ST7123_MAX_TOUCH_POINTS);
     }
     if (FSP_SUCCESS != err)
     {
-        /* 连续失败：IIC 控制器状态机可能卡死（总线电平残留），Close+Open 复位 */
-        if (++g_st7123_fail_count >= 5U)
+        err = st7123_get_status(&status, touch_coordinates, ST7123_MAX_TOUCH_POINTS);
+    }
+    if (FSP_SUCCESS != err)
+    {
+        /* 连续失败（阈值 2）：IIC 控制器状态机可能卡死（总线电平残留），Close+Open 复位 */
+        if (++g_st7123_fail_count >= 2U)
         {
             g_st7123_fail_count = 0U;
             st7123_i2c_recover();

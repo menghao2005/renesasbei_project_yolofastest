@@ -12,7 +12,9 @@ void g_i2c_master_callback(i2c_master_callback_args_t *p_args);
 
 fsp_err_t wait_for_i2c_event (i2c_master_event_t set_event)
 {
-    uint32_t timeout = R_FSP_SystemClockHzGet(FSP_PRIV_CLOCK_ICLK) / 10;
+    /* 超时 = ICLK/25 周期 ≈ 40ms（原 /10 ≈ 100ms：触摸失败时主循环卡 100ms 太痛）。
+     * I2C 事务本身 <5ms，40ms 对 OV5640 初始化与触摸读都足够。 */
+    uint32_t timeout = R_FSP_SystemClockHzGet(FSP_PRIV_CLOCK_ICLK) / 25;
     uint32_t get_event;
 
     do

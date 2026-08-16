@@ -103,7 +103,13 @@ static void pipeline_profile_print_every(const pipeline_profile_t * p_profile)
         uint32_t fps_int   = fps_x100 / 100U;
         uint32_t fps_frac  = fps_x100 % 100U;
 
-        printf("[PIPE] frame=%lu fps=%lu.%02lu total=%lu us ceu_wait=%lu us ceu_kick=%lu us vsync=%lu us blit=%lu us draw=%lu us pre=%lu us model=%lu us post=%lu us center=%lu us\r\n",
+        /* CEU 事件计数（诊断：帧率劣化是 error 风暴还是断流） */
+        extern volatile uint32_t g_ceu_frame_end_count;
+        extern volatile uint32_t g_ceu_error_count;
+        extern volatile uint32_t g_ceu_callback_count;
+        extern volatile uint32_t g_ceu_sync_event_count;
+
+        printf("[PIPE] frame=%lu fps=%lu.%02lu total=%lu us ceu_wait=%lu us ceu_kick=%lu us vsync=%lu us blit=%lu us draw=%lu us pre=%lu us model=%lu us post=%lu us center=%lu us ceu_fe=%lu ceu_err=%lu ceu_cb=%lu ceu_sync=%lu\r\n",
                (unsigned long) s_frame_count,
                (unsigned long) fps_int,
                (unsigned long) fps_frac,
@@ -116,7 +122,11 @@ static void pipeline_profile_print_every(const pipeline_profile_t * p_profile)
                (unsigned long) p_profile->preprocess_us,
                (unsigned long) p_profile->model_us,
                (unsigned long) p_profile->post_us,
-               (unsigned long) p_profile->center_us);
+               (unsigned long) p_profile->center_us,
+               (unsigned long) g_ceu_frame_end_count,
+               (unsigned long) g_ceu_error_count,
+               (unsigned long) g_ceu_callback_count,
+               (unsigned long) g_ceu_sync_event_count);
     }
 }
 
