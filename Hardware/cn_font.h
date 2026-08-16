@@ -7,7 +7,15 @@
 #define CN_FONT_H        (16)
 #define CN_FONT_BYTES    (32)
 
-static const uint8_t g_cn_glyphs[1344] =
+/* UTF-8 编码（3 字节）-> 字模索引。绘制时逐字匹配。 */
+typedef struct
+{
+    uint8_t utf8[3];
+    uint16_t idx;
+} cn_font_entry_t;
+#define CN_FONT_COUNT (42)
+#ifdef CN_FONT_IMPLEMENT
+const uint8_t g_cn_glyphs[1344] =
 {
     0x7F, 0xFC, 0x08, 0x20, 0x08, 0x20, 0x08, 0x20, 0x08, 0x20, 0x08, 0x20,
     0xFF, 0xFE, 0x08, 0x20, 0x08, 0x20, 0x08, 0x20, 0x08, 0x20, 0x10, 0x20,
@@ -123,14 +131,8 @@ static const uint8_t g_cn_glyphs[1344] =
     0x22, 0xA8, 0x04, 0x10, 0x01, 0x00, 0x48, 0x84, 0x48, 0x12, 0x87, 0xF2,
 };
 
-/* UTF-8 编码（3 字节）-> 字模索引。绘制时逐字匹配。 */
-typedef struct
-{
-    uint8_t utf8[3];
-    uint16_t idx;
-} cn_font_entry_t;
 
-static const cn_font_entry_t g_cn_font_index[] =
+const cn_font_entry_t g_cn_font_index[] =
 {
     {{ 0xE5, 0xBC, 0x80 }, 0 },
     {{ 0xE5, 0xA7, 0x8B }, 1 },
@@ -175,6 +177,9 @@ static const cn_font_entry_t g_cn_font_index[] =
     {{ 0xE6, 0xB4, 0x8B }, 40 },
     {{ 0xE8, 0x91, 0xB1 }, 41 },
 };
-#define CN_FONT_COUNT (42)
 
+#else
+extern const uint8_t g_cn_glyphs[];
+extern const cn_font_entry_t g_cn_font_index[];
+#endif
 #endif /* CN_FONT_H_ */

@@ -5,6 +5,7 @@
  * original camera image coordinates.
  */
 
+#define CN_FONT_IMPLEMENT
 #include "cn_font.h"
 #include "ai_postprocess.h"
 #include "font_8x8.h"

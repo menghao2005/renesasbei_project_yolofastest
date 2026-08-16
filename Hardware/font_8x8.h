@@ -11,7 +11,8 @@
 #include <stdint.h>
 
 /* 8x8 点阵字体 ASCII 32-126 (95 个字符, 每个 8 字节) */
-static const uint8_t font_8x8[95 * 8] =
+#ifdef FONT_8X8_IMPLEMENT
+const uint8_t font_8x8[95 * 8] =
 {
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, /* 32 ' ' */
     0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00, /* 33 '!' */
@@ -110,4 +111,7 @@ static const uint8_t font_8x8[95 * 8] =
     0x76,0xDC,0x00,0x00,0x00,0x00,0x00,0x00, /*126 '~' */
 };
 
+#else
+extern const uint8_t font_8x8[];
+#endif
 #endif /* __FONT_8X8_H */
