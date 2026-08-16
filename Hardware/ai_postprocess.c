@@ -5,6 +5,7 @@
  * original camera image coordinates.
  */
 
+#include "cn_font.h"
 #include "ai_postprocess.h"
 #include "font_8x8.h"
 #include <math.h>
@@ -26,7 +27,7 @@ static const float g_anchor_p5[AI_OUT_NUM_BOX * 2] = AI_ANCHOR_P5;  /* stride 32
 
 /* 类别名 (fruit_6lei: hongjiao, li, nangua, pingguo, yangcong) */
 const char *g_ai_class_names[AI_OUT_NUM_CLS] = {
-    "hongjiao", "li", "nangua", "pingguo", "yangcong"
+    "红椒", "梨", "南瓜", "苹果", "洋葱"
 };
 
 #define AI_BOX_SHRINK_RATIO          (0.85f)
@@ -433,6 +434,70 @@ static void ai_fb_string(uint16_t *fb, uint32_t stride,
 }
 
 /* 在 GLCDC framebuffer (RGB565) 上画检测框 + 类别名 */
+/* 16x16 Chinese char (cn_font.h) */
+static void ai_fb_cn_char(uint16_t *fb, uint32_t stride, int px, int py,
+                          uint16_t glyph_idx, uint16_t fg, uint16_t bg, int scale)
+{
+    const uint8_t *g = &g_cn_glyphs[glyph_idx * CN_FONT_BYTES];
+    for (int gy = 0; gy < CN_FONT_H; gy++)
+    {
+        uint8_t hi = g[gy * 2];
+        uint8_t lo = g[gy * 2 + 1];
+        for (int gx = 0; gx < CN_FONT_W; gx++)
+        {
+            uint8_t bit = (gx < 8) ? (uint8_t) ((hi >> (7 - gx)) & 1U)
+                                   : (uint8_t) ((lo >> (15 - gx)) & 1U);
+            for (int dy = 0; dy < scale; dy++)
+            {
+                for (int dx = 0; dx < scale; dx++)
+                {
+                    int x = px + gx * scale + dx;
+                    int y = py + gy * scale + dy;
+                    if ((x < 0) || (x >= FB_CAM_W) || (y < 0) || (y >= FB_CAM_H))
+                    {
+                        continue;
+                    }
+                    fb[(uint32_t) y * stride + (uint32_t) x] = bit ? fg : bg;
+                }
+            }
+        }
+    }
+}
+
+/* Chinese UTF-8 string */
+static void ai_fb_cn_string(uint16_t *fb, uint32_t stride, int px, int py,
+                            const char *str, uint16_t fg, uint16_t bg, int scale)
+{
+    while (*str)
+    {
+        if ((uint8_t) *str < 0x80U)
+        {
+            str++;
+            continue;
+        }
+        uint8_t b0 = (uint8_t) str[0];
+        uint8_t b1 = (uint8_t) str[1];
+        uint8_t b2 = (uint8_t) str[2];
+        uint16_t idx = 0xFFFFU;
+        for (uint16_t i = 0U; i < CN_FONT_COUNT; i++)
+        {
+            if ((g_cn_font_index[i].utf8[0] == b0) &&
+                (g_cn_font_index[i].utf8[1] == b1) &&
+                (g_cn_font_index[i].utf8[2] == b2))
+            {
+                idx = g_cn_font_index[i].idx;
+                break;
+            }
+        }
+        if (0xFFFFU != idx)
+        {
+            ai_fb_cn_char(fb, stride, px, py, idx, fg, bg, scale);
+        }
+        px += CN_FONT_W * scale;
+        str += 3;
+    }
+}
+
 void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
 {
     if (dets == NULL || gp_frame_buffer == NULL) {
@@ -512,17 +577,16 @@ void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
             }
         }
 
-        /* 在框的左上角外侧画类别名 (2x 缩放, 黑底白字) */
+                /* label above box (Chinese 16x16, 2x, black bg white text) */
         {
             const char *name = g_ai_class_names[dets[i].cls % AI_OUT_NUM_CLS];
             int name_w = 0;
-            for (const char *p = name; *p; p++) name_w++;
-            int label_w = name_w * 8 * 2;   /* 2x 缩放, 每字符 16px 宽 */
-            int label_h = 8 * 2;             /* 16px 高 */
+            for (const char *p = name; *p; p += ((uint8_t) *p >= 0x80U) ? 3 : 1) name_w++;
+            int label_w = name_w * 16 * 2;   /* 2x, 32px per char */
+            int label_h = 16 * 2;             /* 32px high */
             int lx = x0;
-            int ly = y0 - label_h - 2;       /* 框上方 2px 间隙 */
-            if (ly < 0) ly = y0 + 2;         /* 如果超出上边界, 放到框内侧上方 */
-            /* 背景填充 (整行 memset, 黑底 0x0000 等价逐像素写, 含边界 clamp) */
+            int ly = y0 - label_h - 2;       /* 2px above box */
+            if (ly < 28) ly = y0 + 2;        /* brand bar (y0-28) protection: label never enters y<28 */
             int fill_x = (lx < 0) ? 0 : lx;
             int fill_w = (lx + label_w > FB_CAM_W) ? (FB_CAM_W - fill_x) : (label_w - (fill_x - lx));
             if (fill_w > 0) {
@@ -532,8 +596,7 @@ void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
                     memset(&fb[(uint32_t)fy * stride + (uint32_t)fill_x], 0, (size_t)fill_w * 2);
                 }
             }
-            /* 白字 */
-            ai_fb_string(fb, stride, lx, ly, name, 0xFFFF, 0x0000, 2);
+            ai_fb_cn_string(fb, stride, lx, ly, name, 0xFFFF, 0x0000, 2);
         }
     }
 }
