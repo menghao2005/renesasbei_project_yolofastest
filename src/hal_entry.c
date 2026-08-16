@@ -301,29 +301,13 @@ void hal_entry(void)
           stage_start = pipeline_profile_measure_begin();
           if (is_auto)
           {
-              /* 目标带（y28-640 共 612 行）↔ 源 640x480：x 0.75, y 1.275。
-               * 带1: y28-484 | 带2: y484-524 跳过 MODE(x360-464) | 带3: y524-544
-               * 带4: y544-592 跳过 START(x288-448) | 带5: y592-640 */
+                          /* 目标带 y28-600（572 行）↔ 源 640x480：x 0.75, y 1.1917。
+               * y600-640 为控制条（模式/开始/灯光 同排）：整行跳过不显示相机，
+               * 按钮不被相机帧覆盖 -> 零闪。 */
               const int fb_w = 480, fb_h = 800;
               uint8_t * fb = gp_frame_buffer;
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 0, 640, 357,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 28, 480, 456);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 357, 480, 31,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 484, 360, 40);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 619, 357, 21, 31,
-                  fb, (int)g_hstride, fb_w, fb_h, 464, 484, 16, 40);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 388, 640, 16,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 524, 480, 20);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 404, 405, 38,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 544, 304, 48);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 619, 404, 21, 38,
-                  fb, (int)g_hstride, fb_w, fb_h, 464, 544, 16, 48);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 442, 640, 7,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 592, 480, 8);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 449, 400, 31,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 600, 300, 40);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 624, 449, 16, 31,
-                  fb, (int)g_hstride, fb_w, fb_h, 468, 600, 12, 40);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 0, 640, 480,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 28, 480, 572);
           }
           else
           {
@@ -339,6 +323,9 @@ void hal_entry(void)
           if (is_auto)
           {
               ai_draw_detections(detections_committed, num_detections_committed);
+              /* 每帧 blit+画框后重绘品牌条（8fps 节奏）：清除任何检测框/标签
+               * 残留污染（品牌条 y0-28 不被 blit 覆盖，不重绘会永久残留） */
+              ui_control_draw_brand_bar();
           }
           ui_control_set_detection_count(num_detections_committed);
           pipe_profile.draw_us = pipeline_profile_measure_end(stage_start);

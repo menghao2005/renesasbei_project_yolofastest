@@ -149,10 +149,16 @@
 #define UI_REMOTE_MOVE_MS       (80U)   /* 节流间隔 + 插值时长 */
 
 /* 补光灯按钮（P109 高电平亮） */
-#define AUTO_LIGHT_X       (304)
-#define AUTO_LIGHT_Y       (600)
-#define AUTO_LIGHT_W       (160)
-#define AUTO_LIGHT_H       (40)
+#define AUTO_LIGHT_X       (324)
+#define AUTO_LIGHT_Y       (604)
+#define AUTO_LIGHT_W       (144)
+#define AUTO_LIGHT_H       (32)
+
+/* AUTO 控制条（y600-640）：三按钮同排深色底，整行不显示相机 */
+#define AUTO_CTRL_Y        (600)
+#define AUTO_CTRL_H        (40)
+#define UI_COLOR_CTRL_TOP  (0x29A9U)  /* (46,52,74) 控制条顶 */
+#define UI_COLOR_CTRL_BOT  (0x1906U)  /* (30,34,50) 控制条底 */
 #define RMT_LIGHT_X        (308)
 #define RMT_LIGHT_Y        (455)
 #define RMT_LIGHT_W        (164)
@@ -181,6 +187,7 @@ typedef enum e_ui_hit
 
 static void ui_light_toggle(void);
 static void ui_draw_light_btn(int x, int y, int w, int h);
+static void ui_draw_auto_ctrl_bar(void);
 
 static ui_mode_t  g_mode  = UI_MODE_AUTO;
 static ui_power_t g_power = UI_POWER_OFF;
@@ -737,9 +744,7 @@ static void ui_redraw_screen(void)
         /* 原工程 banner 渐变 + 瑞萨/电赛 logo（无按钮） */
         bottom_banner_draw(ui_fb(), g_hstride);
         ui_draw_brand_bar();
-        ui_draw_mode_btn();
-        ui_draw_start_btn();
-        ui_draw_light_btn(AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H);
+        ui_draw_auto_ctrl_bar();
     }
     __DSB();
 }
@@ -828,6 +833,25 @@ static void ui_draw_light_btn(int x, int y, int w, int h)
         ui_draw_button(x, y, w, h, "灯光", 2, (UI_HIT_LIGHT == g_touch_last),
                        UI_COLOR_BORDER, 0xFFFFU, UI_COLOR_PANEL_L, UI_COLOR_DARK_TEXT);
     }
+}
+
+/* AUTO 控制条（y600-640）整条绘制：深色渐变底 + 三按钮（模式/开始/灯光）。
+ * blit 整行跳过此区（不显示相机），本函数每 8ms overlay 重绘 -> 按钮零闪。 */
+static void ui_draw_auto_ctrl_bar(void)
+{
+    /* 深色渐变底（4 段近似） */
+    for (int seg = 0; seg < 4; seg++)
+    {
+        int y = AUTO_CTRL_Y + seg * 10;
+        ui_fill_rect(0, y, UI_SCREEN_W, 10,
+                     ui_color_lerp(UI_COLOR_CTRL_TOP, UI_COLOR_CTRL_BOT, seg * 25, 100));
+    }
+    /* 顶部分隔线 */
+    ui_fill_rect(0, AUTO_CTRL_Y, UI_SCREEN_W, 1, UI_COLOR_BORDER);
+    /* 三按钮同排 */
+    ui_draw_mode_btn();
+    ui_draw_start_btn();
+    ui_draw_light_btn(AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H);
 }
 
 static void ui_remote_reset_to_home(void)
@@ -1139,9 +1163,7 @@ void ui_control_draw_overlay(void)
     }
     else
     {
-        ui_draw_mode_btn();
-        ui_draw_start_btn();
-        ui_draw_light_btn(AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H);
+        ui_draw_auto_ctrl_bar();
     }
     __DSB();
 }
