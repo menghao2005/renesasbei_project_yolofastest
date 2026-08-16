@@ -177,7 +177,7 @@ void hal_entry(void)
     __DSB();
 
     R_IIC_MASTER_Open(&g_i2c_master0_ctrl, &g_i2c_master0_cfg); // I2C for camera and touch panel.
-    ui_control_draw_boot_text("CAMERA INIT");   /* 上电提示：OV5640 配置 ~1s */
+    ui_control_draw_boot_text("正在初始化");   /* 上电提示：OV5640 配置 ~1s */
     ov5640_init();
     ov5640_config_dvp_vga_rgb565_15fps();
 //    ov5640_set_output_format(OV5640_OUTPUT_FORMAT_RGB565);
@@ -188,7 +188,7 @@ void hal_entry(void)
     ceu_init(g_image_vga_sdram[0], VGA_WIDTH, VGA_HEIGHT);
     /* ===== NPU init ===== */
 
-    ui_control_draw_boot_text("NPU INIT");      /* 上电提示：Ethos-U55 初始化 */
+    ui_control_draw_boot_text("正在初始化");      /* 上电提示：Ethos-U55 初始化 */
     err  = RM_ETHOSU_Open(&g_rm_ethosu0_ctrl, &g_rm_ethosu0_cfg);
     if (FSP_SUCCESS != err)
     {
@@ -293,14 +293,41 @@ void hal_entry(void)
           pipe_profile.ceu_kick_us = pipeline_profile_measure_end(stage_start);
 
           /* Dave2D hardware scale: 640x480 -> camera window on display.
-           * AUTO: full 480x640; REMOTE: 480x360 top area. */
+           * AUTO: full 480x612 (y28-640) split into regions that skip MODE/START
+           * button rects -> buttons are never covered by camera frame (no flicker).
+           * REMOTE: single 480x360 top window. */
           int cam_x, cam_y, cam_w, cam_h;
           bool is_auto = ui_control_get_camera_rect(&cam_x, &cam_y, &cam_w, &cam_h);
           stage_start = pipeline_profile_measure_begin();
-          graphics_blit_scale(p_display_frame, 640, 480,
-                  (uint8_t *) gp_frame_buffer + (uint32_t) cam_y * g_hstride * 2U,
-                              cam_w, cam_h,
-                              (int)g_hstride);
+          if (is_auto)
+          {
+              /* 目标带（y28-640 共 612 行）↔ 源 640x480：x 0.75, y 1.275。
+               * 带1: y28-484 | 带2: y484-524 跳过 MODE(x360-464) | 带3: y524-544
+               * 带4: y544-592 跳过 START(x288-448) | 带5: y592-640 */
+              const int fb_w = 480, fb_h = 800;
+              uint8_t * fb = gp_frame_buffer;
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 0, 640, 352,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 28, 480, 448);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 352, 475, 40,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 476, 356, 52);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 624, 352, 16, 40,
+                  fb, (int)g_hstride, fb_w, fb_h, 468, 476, 12, 52);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 392, 640, 10,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 528, 480, 12);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 402, 379, 43,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 540, 284, 56);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 603, 402, 37, 43,
+                  fb, (int)g_hstride, fb_w, fb_h, 452, 540, 28, 56);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 445, 640, 35,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 596, 480, 44);
+          }
+          else
+          {
+              graphics_blit_scale(p_display_frame, 640, 480,
+                      (uint8_t *) gp_frame_buffer + (uint32_t) cam_y * g_hstride * 2U,
+                                  cam_w, cam_h,
+                                  (int)g_hstride);
+          }
           pipe_profile.blit_us = pipeline_profile_measure_end(stage_start);
 
           /* 画框使用已提交结果；仅 AUTO 界面画（REMOTE 画面缩小，坐标系不匹配） */

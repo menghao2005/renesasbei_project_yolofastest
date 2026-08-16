@@ -25,8 +25,11 @@
 #include "ui_control.h"
 
 #include "graphics.h"
+#include <math.h>
 #include "bottom_banner.h"
 #include "font_8x8.h"
+#include "cn_font.h"
+#include "bottom_logo_data.h"
 #include "gt911.h"
 #include "robot_arm.h"
 #include "harvest_task.h"
@@ -51,10 +54,10 @@
 #define AUTO_BTN_MODE_Y     (484)
 #define AUTO_BTN_MODE_W     (104)
 #define AUTO_BTN_MODE_H     (40)
-#define AUTO_BTN_START_X    (272)
-#define AUTO_BTN_START_Y    (540)
-#define AUTO_BTN_START_W    (192)
-#define AUTO_BTN_START_H    (56)
+#define AUTO_BTN_START_X    (288)
+#define AUTO_BTN_START_Y    (544)
+#define AUTO_BTN_START_W    (160)
+#define AUTO_BTN_START_H    (48)
 
 /* --- REMOTE 界面 --- */
 #define RMT_CAM_Y           (UI_BRAND_H)     /* 相机小窗 y 28-388 */
@@ -85,11 +88,11 @@
 #define RMT_JOY_DEAD        (12)             /* 死区（px），以内不动作 */
 
 /* 抓取 / 打开爪子按钮（右半屏） */
-#define RMT_GRASP_X         (292)
+#define RMT_GRASP_X         (308)
 #define RMT_GRASP_Y         (540)
 #define RMT_GRASP_W         (164)
 #define RMT_GRASP_H         (64)
-#define RMT_OPEN_X          (292)
+#define RMT_OPEN_X          (308)
 #define RMT_OPEN_Y          (636)
 #define RMT_OPEN_W          (164)
 #define RMT_OPEN_H          (64)
@@ -253,8 +256,98 @@ static void ui_draw_string(int px, int py, const char * str, uint16_t fg, int sc
     }
 }
 
+/* 16x16 中文点阵：单字绘制（scale 倍放大，直接写 framebuffer） */
+static void ui_draw_cn_char(uint16_t * fb, int stride, int x, int y,
+                            uint16_t glyph_idx, uint16_t color, int scale)
+{
+    const uint8_t * g = &g_cn_glyphs[glyph_idx * CN_FONT_BYTES];
+    for (int gy = 0; gy < CN_FONT_H; gy++)
+    {
+        uint8_t hi = g[gy * 2];
+        uint8_t lo = g[gy * 2 + 1];
+        for (int gx = 0; gx < CN_FONT_W; gx++)
+        {
+            uint8_t bit = (gx < 8) ? (uint8_t) ((hi >> (7 - gx)) & 1U)
+                                   : (uint8_t) ((lo >> (15 - gx)) & 1U);
+            if (0U != bit)
+            {
+                for (int dy = 0; dy < scale; dy++)
+                {
+                    for (int dx = 0; dx < scale; dx++)
+                    {
+                        fb[(y + gy * scale + dy) * stride + (x + gx * scale + dx)] = color;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* 中文（UTF-8）字符串居中绘制；ASCII 字符混排用 8x8 字库 */
+static void ui_draw_cn_centered(int cx, int cy, const char * str, uint16_t color, int scale)
+{
+    int count = 0;
+    const char * p = str;
+    while (*p)
+    {
+        if ((uint8_t) *p >= 0x80U) { p += 3; } else { p += 1; }
+        count++;
+    }
+    int total_w = count * CN_FONT_W * scale;
+    int x0 = cx - total_w / 2;
+    int y0 = cy - CN_FONT_H * scale / 2;
+    uint16_t * fb = (uint16_t *) gp_frame_buffer;
+    int stride = (int) g_hstride;
+
+    p = str;
+    while (*p)
+    {
+        if ((uint8_t) *p >= 0x80U)
+        {
+            uint8_t b0 = (uint8_t) p[0];
+            uint8_t b1 = (uint8_t) p[1];
+            uint8_t b2 = (uint8_t) p[2];
+            uint16_t idx = 0xFFFFU;
+            for (uint16_t i = 0U; i < CN_FONT_COUNT; i++)
+            {
+                if ((g_cn_font_index[i].utf8[0] == b0) &&
+                    (g_cn_font_index[i].utf8[1] == b1) &&
+                    (g_cn_font_index[i].utf8[2] == b2))
+                {
+                    idx = g_cn_font_index[i].idx;
+                    break;
+                }
+            }
+            if (0xFFFFU != idx)
+            {
+                ui_draw_cn_char(fb, stride, x0, y0, idx, color, scale);
+            }
+            x0 += CN_FONT_W * scale;
+            p += 3;
+        }
+        else
+        {
+            char tmp[2] = { *p, 0 };
+            ui_draw_string(x0, y0 + (CN_FONT_H * scale - 8 * scale) / 2, tmp, color, scale);
+            x0 += 8 * scale;
+            p += 1;
+        }
+    }
+}
+
 static void ui_draw_string_centered(int cx, int cy, const char * str, uint16_t fg, int scale)
 {
+    /* 含中文（UTF-8 首字节 >=0x80）→ 16x16 点阵字库；纯 ASCII → 8x8 字库 */
+    bool has_cn = false;
+    for (const char * p = str; *p; p++)
+    {
+        if ((uint8_t) *p >= 0x80U) { has_cn = true; break; }
+    }
+    if (has_cn)
+    {
+        ui_draw_cn_centered(cx, cy, str, fg, scale);
+        return;
+    }
     int text_w = (int) strlen(str) * 8 * scale;
     int text_h = 8 * scale;
 
@@ -428,12 +521,12 @@ static const char * ui_power_label(ui_power_t power)
     switch (power)
     {
         case UI_POWER_ON:
-            return "STOP";      /* 运行中：点击停止 */
+            return "停止";      /* 运行中：点击停止 */
         case UI_POWER_LOCKED:
-            return "RESUME";    /* 锁定：点击恢复 */
+            return "继续";      /* 锁定：点击恢复 */
         case UI_POWER_OFF:
         default:
-            return "RUN";       /* 待机：点击开始 */
+            return "开始";      /* 待机：点击开始 */
     }
 }
 
@@ -456,7 +549,7 @@ static void ui_draw_brand_bar(void)
 static void ui_draw_mode_btn(void)
 {
     ui_draw_button(AUTO_BTN_MODE_X, AUTO_BTN_MODE_Y, AUTO_BTN_MODE_W, AUTO_BTN_MODE_H,
-                   "MODE", 2, (UI_HIT_MODE == g_touch_last),
+                   "模式", 2, (UI_HIT_MODE == g_touch_last),
                    (UI_MODE_REMOTE == g_mode) ? UI_COLOR_ORANGE : UI_COLOR_BORDER,
                    0xFFFFU, UI_COLOR_PANEL_L, UI_COLOR_DARK_TEXT);
 }
@@ -499,6 +592,36 @@ static void ui_draw_joy_area(void)
     ui_draw_circle_ring(kx, ky, RMT_JOY_KNOB_R, 2, UI_COLOR_BLUE_D);
 }
 
+/* REMOTE 面板底部：电赛 logo（NUEDC，0.8 倍软件缩放，透明色跳过）。
+ * 放 y704 起（GRASP/OPEN 与摇杆下方空白区），居中。 */
+/* REMOTE 电赛 logo（NUEDC，纯整数 0.8 缩放，透明色跳过） */
+static void ui_draw_remote_logo(void)
+{
+    /* 0.8 = 4/5：sy=y*5/4、sx=x*5/4，无浮点无除法。
+     * dst 152x92 @ (164,704)，跳过透明像素。 */
+    const int dw = (BOTTOM_LOGO_WIDTH * 4) / 5;    /* 152 */
+    const int dh = (BOTTOM_LOGO_HEIGHT * 4) / 5;   /* 92 */
+    const int dst_x = (UI_SCREEN_W - dw) / 2;      /* 164 */
+    const int dst_y = 704;
+    uint16_t * fb = (uint16_t *) gp_frame_buffer;
+    const int stride = (int) g_hstride;
+
+    for (int y = 0; y < dh; y++)
+    {
+        int sy = (y * 5) / 4;
+        for (int x = 0; x < dw; x++)
+        {
+            int sx = (x * 5) / 4;
+            uint16_t c = g_bottom_logo_pixels[sy * BOTTOM_LOGO_WIDTH + sx];
+            if (BOTTOM_LOGO_TRANSPARENT_RGB565 != c)
+            {
+                fb[(y + dst_y) * stride + (x + dst_x)] = c;
+            }
+        }
+    }
+}
+
+
 static void ui_draw_remote_panel(void)
 {
     /* 控制面板背景（从相机小窗下沿 y388 开始，盖掉 y388-392 缝隙残留） */
@@ -509,7 +632,7 @@ static void ui_draw_remote_panel(void)
 
     /* BACK / LOCK */
     ui_draw_button(RMT_BACK_X, RMT_BACK_Y, RMT_BACK_W, RMT_BACK_H,
-                   "BACK", 2, (UI_HIT_BACK == g_touch_last), UI_COLOR_BORDER,
+                   "返回", 2, (UI_HIT_BACK == g_touch_last), UI_COLOR_BORDER,
                    0xFFFFU, UI_COLOR_PANEL_L, UI_COLOR_DARK_TEXT);
 
     /* 状态徽章（白色圆角底 + 彩色文字） */
@@ -519,14 +642,14 @@ static void ui_draw_remote_panel(void)
                             ui_power_label(g_power), ui_power_color(g_power), 2);
 
     ui_draw_button(RMT_LOCK_X, RMT_LOCK_Y, RMT_LOCK_W, RMT_LOCK_H,
-                   "LOCK", 2, (UI_HIT_LOCK == g_touch_last),
+                   "锁定", 2, (UI_HIT_LOCK == g_touch_last),
                    UI_COLOR_RED_D,
                    UI_COLOR_RED, UI_COLOR_RED_D, 0xFFFFU);
 
     /* ===== 虚拟摇杆（左半屏） ===== */
     /* 标签（固定不动，摇杆区重绘不覆盖） */
     ui_draw_string_centered(RMT_JOY_CX, RMT_JOY_CY - RMT_JOY_R - 16,
-                            "JOYSTICK", UI_COLOR_GRAY, 2);
+                            "摇杆", UI_COLOR_GRAY, 2);
 
     ui_draw_joy_area();
 
@@ -534,11 +657,14 @@ static void ui_draw_remote_panel(void)
     ui_draw_string_centered(RMT_GRASP_X + RMT_GRASP_W / 2, RMT_GRASP_Y - 18,
                             "GRIPPER", UI_COLOR_GRAY, 2);
     ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
-                   "GRASP", 2, (UI_HIT_GRASP == g_touch_last), UI_COLOR_GREEN_D,
+                   "抓取", 2, (UI_HIT_GRASP == g_touch_last), UI_COLOR_GREEN_D,
                    UI_COLOR_GREEN, UI_COLOR_GREEN_D, 0xFFFFU);
     ui_draw_button(RMT_OPEN_X, RMT_OPEN_Y, RMT_OPEN_W, RMT_OPEN_H,
-                   "OPEN", 2, (UI_HIT_OPEN == g_touch_last), UI_COLOR_BLUE_D,
+                   "松开", 2, (UI_HIT_OPEN == g_touch_last), UI_COLOR_BLUE_D,
                    UI_COLOR_BLUE, UI_COLOR_BLUE_D, 0xFFFFU);
+
+    /* 面板底部：电赛 NUEDC logo（空白区居中） */
+    ui_draw_remote_logo();
 }
 
 /* 整屏重绘（界面切换时调用） */
@@ -813,6 +939,16 @@ void ui_control_init(void)
  * 上电后 OV5640 配置 + NPU 初始化 + 首帧采集需 1-2s，此提示避免"黑屏"观感。 */
 void ui_control_draw_boot_text(const char * msg)
 {
+    /* 中文提示：16x16 字库 scale 2 居中 */
+    if ((uint8_t) msg[0] >= 0x80U)
+    {
+        ui_fill_rect(0, 336, UI_SCREEN_W, 32, UI_COLOR_BRAND_BG);
+        ui_fill_rect(0, 336, UI_SCREEN_W, 2, UI_COLOR_GOLD);
+        ui_draw_cn_centered(UI_SCREEN_W / 2, 336 + 16, msg, UI_COLOR_GOLD, 2);
+        __DSB();
+        return;
+    }
+
     int text_w = (int) strlen(msg) * 8 * 2;   /* 8x8 字库 scale 2 */
     int x = (UI_SCREEN_W - text_w) / 2;
     if (x < 0) { x = 0; }
@@ -855,6 +991,19 @@ void ui_control_service(void)
     {
         g_joy_x = g_touch_x;
         g_joy_y = g_touch_y;
+        /* 限制摇杆头在底座圆内（外沿不超底座，防蓝色残影露在纯白圆外） */
+        {
+            int dx = g_joy_x - RMT_JOY_CX;
+            int dy = g_joy_y - RMT_JOY_CY;
+            int max_d = RMT_JOY_R - RMT_JOY_KNOB_R;
+            int d2 = dx * dx + dy * dy;
+            if (d2 > max_d * max_d)
+            {
+                float s = (float) max_d / sqrtf((float) d2);
+                g_joy_x = RMT_JOY_CX + (int) ((float) dx * s);
+                g_joy_y = RMT_JOY_CY + (int) ((float) dy * s);
+            }
+        }
         if ((UI_MODE_REMOTE == g_mode) && (UI_POWER_ON == g_power))
         {
             ui_joy_apply();
@@ -892,8 +1041,12 @@ void ui_control_draw_overlay(void)
 {
     if (UI_MODE_REMOTE == g_mode)
     {
-        /* 摇杆区（含摇杆头当前位置）每轮重绘，拖动实时跟随且不闪 */
-        ui_draw_joy_area();
+        /* 仅操作中重绘摇杆区（拖动跟随）；未操作时摇杆头在中心且相机小窗
+         * （y28-388）不覆盖摇杆区（y620）——无需每轮全画白底座（消除刷新闪烁感） */
+        if (UI_HIT_JOY == g_touch_last)
+        {
+            ui_draw_joy_area();
+        }
     }
     else
     {

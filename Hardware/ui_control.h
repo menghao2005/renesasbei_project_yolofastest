@@ -33,6 +33,16 @@ bool       ui_control_is_locked(void);
 void       ui_control_set_detection_count(uint32_t count);  /* REMOTE 界面 HUD 目标数 */
 void       ui_control_draw_overlay(void);                   /* 每帧相机 blit 后调用：重绘浮层 */
 void       ui_control_draw_brand_bar(void);                  /* 相机帧 blit 后调用（8fps）：重绘顶部金字品牌条 */
+
+/* AUTO 相机分块 blit 用：按钮矩形（与 ui_control.c 同值，hal_entry 跳过这些区域） */
+#define UI_AUTO_BTN_MODE_Y   (484)
+#define UI_AUTO_BTN_MODE_H   (40)
+#define UI_AUTO_BTN_MODE_X   (360)
+#define UI_AUTO_BTN_MODE_W   (104)
+#define UI_AUTO_BTN_START_Y  (544)
+#define UI_AUTO_BTN_START_H  (48)
+#define UI_AUTO_BTN_START_X  (288)
+#define UI_AUTO_BTN_START_W  (160)
 void       ui_control_redraw_screen(void);                   /* 整屏重绘当前界面（海报退场/异常恢复） */
 void       ui_control_draw_boot_text(const char * msg);      /* 上电初始化提示（相机区深蓝底金字，首帧 blit 后覆盖） */
 

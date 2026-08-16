@@ -50,6 +50,7 @@ volatile uint16_t g_st7123_touch_x = 0U;
 volatile uint16_t g_st7123_touch_y = 0U;
 
 static fsp_err_t st7123_i2c_read(uint16_t reg, uint8_t *buf, uint32_t len);
+static fsp_err_t st7123_i2c_write(uint16_t reg, const uint8_t *buf, uint32_t len);
 static void st7123_i2c_recover(void);
 static uint8_t st7123_parse_report(const uint8_t *report, coord_t *points, uint32_t num_points);
 
@@ -148,6 +149,15 @@ static void st7123_i2c_recover(void)
     fsp_err_t close_err = R_IIC_MASTER_Close(&g_i2c_master0_ctrl);
     fsp_err_t open_err  = R_IIC_MASTER_Open(&g_i2c_master0_ctrl, &g_i2c_master0_cfg);
     printf("ST7123 I2C recover: close=%d open=%d\r\n", (int) close_err, (int) open_err);
+
+    /* ST7123 软复位（GT911 协议 0x8040）：MCU 侧 Close/Open 复位不了控制器内部
+     * 状态机（总线残留时读也失败）——软复位让控制器重新就绪。写失败无妨，
+     * 下次读仍失败会再触发 recover。 */
+    uint8_t rst = 0x01U;
+    (void) st7123_i2c_write(0x8040U, &rst, 1U);
+    R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MILLISECONDS);
+    rst = 0x00U;
+    (void) st7123_i2c_write(0x8040U, &rst, 1U);
     R_BSP_SoftwareDelay(5, BSP_DELAY_UNITS_MILLISECONDS);
 }
 
@@ -294,6 +304,28 @@ static fsp_err_t st7123_i2c_read(uint16_t reg, uint8_t *buf, uint32_t len)
     APP_ERR_RETURN(err, " ** I2C master ST7123 data read timeout ** \r\n");
 
     return FSP_SUCCESS;
+}
+
+static fsp_err_t st7123_i2c_write(uint16_t reg, const uint8_t * buf, uint32_t len)
+{
+    fsp_err_t err = FSP_SUCCESS;
+    uint8_t frame[2U + 8U];
+
+    if ((NULL == buf) || (len > 8U))
+    {
+        return FSP_ERR_ASSERTION;
+    }
+
+    frame[0] = (uint8_t) ((reg >> 8) & 0xFFU);
+    frame[1] = (uint8_t) (reg & 0xFFU);
+    memcpy(&frame[2U], buf, len);
+
+    err = R_IIC_MASTER_SlaveAddressSet(&g_i2c_master0_ctrl, ST7123_I2C_SLAVE_ADDR, I2C_MASTER_ADDR_MODE_7BIT);
+    if (FSP_SUCCESS != err) { return err; }
+    err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, frame, 2U + len, false);
+    if (FSP_SUCCESS != err) { return err; }
+    err = wait_for_i2c_event(I2C_MASTER_EVENT_TX_COMPLETE);
+    return err;
 }
 
 /*******************************************************************************************************************//**

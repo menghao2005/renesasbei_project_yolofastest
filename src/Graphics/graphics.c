@@ -155,4 +155,25 @@ void graphics_blit_scale(const void * pSrc, int SrcWidth, int SrcHeight,
     d2_flushframe(*_d2_handle_user);
 }
 
+void graphics_blit_scale_region(const void * pSrc, int SrcWidth, int SrcHeight,
+                                int src_x, int src_y, int src_w, int src_h,
+                                void * pDst, int DstStride, int DstWidth, int DstHeight,
+                                int dst_x, int dst_y, int dst_w, int dst_h)
+{
+    /* 目标 framebuffer 基地址（全屏坐标系，偏移由 d2_blitcopy 给出） */
+    d2_framebuffer(*_d2_handle_user, pDst, (d2_s32)DstStride, (d2_s32)DstWidth, (d2_s32)DstHeight, d2_mode_rgb565);
+    d2_selectrenderbuffer(*_d2_handle_user, renderbuffer);
+    d2_setblitsrc(*_d2_handle_user, (void *)pSrc, (d2_s32)SrcWidth, (d2_s32)SrcWidth, (d2_s32)SrcHeight, d2_mode_rgb565);
+
+    /* 源区域 → 目标区域（16.4 定点） */
+    d2_blitcopy(*_d2_handle_user,
+                (d2_s32)src_w, (d2_s32)src_h,
+                (d2_s32)src_x, (d2_s32)src_y,
+                (d2_width)((uint32_t)dst_w << 4), (d2_width)((uint32_t)dst_h << 4),
+                (d2_width)((uint32_t)dst_x << 4), (d2_width)((uint32_t)dst_y << 4), 0);
+
+    d2_executerenderbuffer(*_d2_handle_user, renderbuffer, 0);
+    d2_flushframe(*_d2_handle_user);
+}
+
 
