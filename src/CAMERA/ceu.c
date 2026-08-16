@@ -84,6 +84,18 @@ static const ceu_sync_try_t g_ceu_sync_tries[] =
 
 static uint32_t g_ceu_sync_try_index = 0;
 
+/* ===== 中断级 kick（FRAME_END 回调里立即启动下一帧采集，延迟 0ms）=====
+ * 主循环处理 g_ceu_completed_buf（回调刚采完的帧），下一帧采集由回调直接
+ * R_CEU_CaptureStart——不再等主循环轮询 kick（55ms AI 处理期间不丢帧）。 */
+extern uint8_t g_image_vga_sdram[2][VGA_WIDTH * VGA_HEIGHT * RGB565_BYTE_PER_PIXEL];  /* hal_entry.c 定义 */
+static volatile uint8_t * s_capture_buf = NULL;           /* 当前正在采集的缓冲（上次 kick 的） */
+volatile uint8_t * g_ceu_completed_buf = NULL;            /* 刚采完待处理的帧 */
+
+void ceu_set_capture_buf(uint8_t * buf)
+{
+    s_capture_buf = buf;
+}
+
 static void ceu_apply_sync_try(void)
 {
     static uint32_t last_printed_index = 0xFFFFFFFFU;
@@ -222,6 +234,15 @@ void g_ceu_vga_callback (capture_callback_args_t * p_args)
         {
             g_ceu_frame_end_count++;
             g_capture_ready = true;
+            /* 中断级 kick：FRAME_END 瞬间立即启动下一帧采集（延迟 0，赶上传感器
+             * VSYNC——AUTO 55ms AI 处理不再导致 kick 延迟错过帧 → 满速 7.2fps）。
+             * 双缓冲切换：completed = 刚采完的帧，下一块 = 另一块。 */
+            g_ceu_completed_buf = s_capture_buf;
+            s_capture_buf = (s_capture_buf == (volatile uint8_t *) &g_image_vga_sdram[0][0])
+                            ? (volatile uint8_t *) &g_image_vga_sdram[1][0]
+                            : (volatile uint8_t *) &g_image_vga_sdram[0][0];
+            __DSB();
+            (void) R_CEU_CaptureStart(&g_ceu_vga_ctrl, (uint8_t *) s_capture_buf);
         }
         else if (ceu_event_is_sync_warning(event))
         {

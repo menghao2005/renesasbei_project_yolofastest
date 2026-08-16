@@ -232,6 +232,8 @@ void hal_entry(void)
         printf("CEU initial capture start failed: %d\r\n", (int) err);
         return;
     }
+    /* 中断级 kick：告知回调当前采集缓冲（此后每帧 FRAME_END 由回调直接 kick 下一帧） */
+    ceu_set_capture_buf(p_camera_buffers[frame_index_display]);
 
     /* 首帧等待：5s 超时后重试一次 kick+wait，仍失败则继续进主循环（断流自愈兜底）。
      * 绝不 return——return 后主循环不跑，系统卡死无画面。 */
@@ -272,28 +274,23 @@ void hal_entry(void)
 
           pipeline_profile_t pipe_profile = {0};
           uint32_t stage_start = 0U;
-          /* 帧周期计时：loop_start = 上一帧处理完成时刻 → total 含帧等待，
-           * fps 打印为真实画面帧率（相机硬件 ~8fps），而非处理吞吐 */
+          /* 帧周期计时：纯帧间隔 = 本帧开始 - 上一帧开始（不含本帧处理时间，
+           * 中断级 kick 流水线真实出帧率 7.2fps；含处理会显示 5.15 误导） */
           uint32_t now_cyc = DWT_get_count();
           uint32_t loop_start = (0U != s_prev_frame_end_cyc) ? s_prev_frame_end_cyc : now_cyc;
           s_prev_frame_end_cyc = now_cyc;
+          uint32_t frame_period_us = DWT_count_to_us(now_cyc - loop_start);
           const model_profile_t * p_model_profile = NULL;
-          uint8_t * p_display_frame = p_camera_buffers[frame_index_display];
-          uint8_t * p_capture_frame = p_camera_buffers[frame_index_capture];
+          /* 中断级 kick 流水线：帧由 CEU 回调（FRAME_END）采完并直接 kick 下一帧，
+           * 主循环只处理 g_ceu_completed_buf（刚采完的帧） */
+          uint8_t * p_display_frame = (uint8_t *) g_ceu_completed_buf;
 
-          /* 先 kick 下一帧采集（与当前帧的 blit/AI 处理重叠，保持 8fps 流水线） */
-          frame_index_display ^= 1U;
-          frame_index_capture ^= 1U;
+          /* 处理前 Invalidate：丢弃缓存旧行，读 CEU DMA 刚写入的新帧（SDRAM） */
           stage_start = pipeline_profile_measure_begin();
-          prepare_camera_capture_buffer(p_capture_frame);
-          err = ceu_capture_start(p_capture_frame);
+          SCB_InvalidateDCache_by_Addr(p_display_frame, (int32_t) CAMERA_FRAME_BYTES);
+          __DSB();
+          __ISB();
           pipe_profile.ceu_kick_us = pipeline_profile_measure_end(stage_start);
-          if (FSP_SUCCESS != err)
-          {
-              printf("CEU capture start failed: %d\r\n", (int) err);
-              R_BSP_SoftwareDelay(500, BSP_DELAY_UNITS_MILLISECONDS);
-              continue;
-          }
 
           /* Dave2D hardware scale: 640x480 -> camera window on display.
            * AUTO: full 480x640; REMOTE: 480x360 top area. */
@@ -391,7 +388,7 @@ void hal_entry(void)
           }
           pipe_profile.center_us = pipeline_profile_measure_end(stage_start);
 
-          pipe_profile.total_us = pipeline_profile_measure_end(loop_start);
+          pipe_profile.total_us = frame_period_us;   /* 纯帧间隔（真实画面帧率） */
           pipeline_profile_print_every(&pipe_profile);
           }
           /* 断流自愈：距上次"帧或 recover"≥2s 才触发。首帧前 s_last_frame_cyc=0
@@ -401,13 +398,14 @@ void hal_entry(void)
           {
               s_last_frame_cyc = DWT_get_count();   /* 重置计时：限速 recover */
               ceu_recover();
-              /* reopen 后 CEU 空闲：直接重新 kick 当前采集缓冲 */
-              prepare_camera_capture_buffer(p_camera_buffers[frame_index_capture]);
-              err = ceu_capture_start(p_camera_buffers[frame_index_capture]);
+              /* reopen 后 CEU 空闲：直接重新 kick（回调会切换到另一块缓冲） */
+              prepare_camera_capture_buffer(g_image_vga_sdram[0]);
+              err = ceu_capture_start(g_image_vga_sdram[0]);
               if (FSP_SUCCESS != err)
               {
                   printf("CEU recover kick failed: %d\r\n", (int) err);
               }
+              ceu_set_capture_buf(g_image_vga_sdram[0]);
           }
 
           /* UI 浮层重绘：DWT 节流 ~15ms。原 wait_vsync 阻塞等 60Hz（每轮 16.7ms 粒度）

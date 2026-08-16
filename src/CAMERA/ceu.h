@@ -63,5 +63,7 @@ void yuv422_to_rgb565(const void *inbuf, void *outbuf, uint16_t width, uint16_t 
 void camera_signal_probe(void);
 extern volatile bool g_capture_ready;   /* CEU 帧完成标志（回调置位，主循环轮询） */
 void ceu_recover(void);                 /* 断流自愈：重开 CEU + 换同步配置（无帧超时由主循环调用） */
+void ceu_set_capture_buf(uint8_t * buf); /* 中断级 kick：告知回调当前采集缓冲（启动/恢复后调用） */
+extern volatile uint8_t * g_ceu_completed_buf;  /* 回调刚采完待主循环处理的帧（FRAME_END 更新） */
 
 #endif /* CEU_H_ */
