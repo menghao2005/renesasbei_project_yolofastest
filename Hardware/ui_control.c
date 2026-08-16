@@ -939,11 +939,11 @@ static void ui_gripper_grasp(void)
                                  1350U, 300U);
 }
 
-/* 打开爪子（gripper 500us，开角调小） */
+/* 打开爪子（gripper 900us，开角再调小） */
 static void ui_gripper_open(void)
 {
     RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                 500U, 300U);
+                                 900U, 300U);
 }
 
 /* ------------------------------------------------------------------------- */
