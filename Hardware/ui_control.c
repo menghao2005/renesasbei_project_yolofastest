@@ -805,7 +805,7 @@ static void ui_toggle_power(void)
             {
                 ui_remote_reset_to_home();
                 RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                             UI_REMOTE_GRIPPER_US, 5000U);
+                                             UI_REMOTE_GRIPPER_US, 4000U);
             }
             break;
 
@@ -834,13 +834,11 @@ static void ui_toggle_mode(void)
     if (g_mode == UI_MODE_AUTO)
     {
         g_mode = UI_MODE_REMOTE;
-        if (UI_POWER_ON == g_power)
-        {
-            /* 从自动流程切到遥控：机械臂先回车库位，等待遥控 */
-            ui_remote_reset_to_home();
-            RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                         UI_REMOTE_GRIPPER_US, 5000U);
-        }
+        /* 从自动切遥控：无论 power 状态都登记回默认位（4s 平滑）。
+         * LOCKED（STOP 后）时机械臂 paused，回位 move 冻结，点“继续”后平滑执行，防瞬间跳回默认位。 */
+        ui_remote_reset_to_home();
+        RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
+                                     UI_REMOTE_GRIPPER_US, 4000U);
     }
     else
     {
