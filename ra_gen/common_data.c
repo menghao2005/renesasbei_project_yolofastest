@@ -1,5 +1,25 @@
 /* generated common source file - do not edit */
 #include "common_data.h"
+#include "ethosu_driver.h"
+struct ethosu_driver g_ethosu0;
+rm_ethosu_extended_cfg_t g_rm_ethosu0_ext_cfg =
+{ .p_dev = &g_ethosu0, };
+
+rm_ethosu_instance_ctrl_t g_rm_ethosu0_ctrl =
+{ .p_ext_cfg = &g_rm_ethosu0_ext_cfg, };
+
+const rm_ethosu_cfg_t g_rm_ethosu0_cfg =
+{ .secure_enable = 1, .privilege_enable = 1,
+#if defined(VECTOR_NUMBER_NPU_IRQ)
+            .irq             = VECTOR_NUMBER_NPU_IRQ,
+#else
+  .irq = FSP_INVALID_VECTOR,
+#endif
+  .ipl = (12),
+  .p_callback = NULL, .p_context = NULL, };
+
+const rm_ethosu_instance_t g_rm_ethosu0 =
+{ .p_ctrl = &g_rm_ethosu0_ctrl, .p_cfg = &g_rm_ethosu0_cfg, .p_api = &g_rm_ethosu_on_npu, };
 icu_instance_ctrl_t g_external_irq_VSYNC_ctrl;
 
 /** External IRQ extended configuration for ICU HAL driver */
@@ -34,7 +54,7 @@ const icu_extended_cfg_t g_external_irq_ext_cfg =
 { .filter_src = EXTERNAL_IRQ_DIGITAL_FILTER_PCLK_DIV, };
 
 const external_irq_cfg_t g_external_irq_cfg =
-{ .channel = 6, .trigger = EXTERNAL_IRQ_TRIG_RISING, .filter_enable = false, .clock_source_div =
+{ .channel = 20, .trigger = EXTERNAL_IRQ_TRIG_FALLING, .filter_enable = false, .clock_source_div =
           EXTERNAL_IRQ_CLOCK_SOURCE_DIV_64,
   .p_callback = external_irq_callback,
   /** If NULL then do not add & */
@@ -45,8 +65,8 @@ const external_irq_cfg_t g_external_irq_cfg =
 #endif
   .p_extend = (void*) &g_external_irq_ext_cfg,
   .ipl = (12),
-#if defined(VECTOR_NUMBER_ICU_IRQ6)
-    .irq                 = VECTOR_NUMBER_ICU_IRQ6,
+#if defined(VECTOR_NUMBER_ICU_IRQ20)
+    .irq                 = VECTOR_NUMBER_ICU_IRQ20,
 #else
   .irq = FSP_INVALID_VECTOR,
 #endif
@@ -203,7 +223,7 @@ const mipi_dsi_instance_t g_mipi_dsi0 =
 { .p_ctrl = &g_mipi_dsi0_ctrl, .p_cfg = &g_mipi_dsi0_cfg, .p_api = &g_mipi_dsi };
 /** Display framebuffer */
 #if GLCDC_CFG_LAYER_1_ENABLE
-        uint8_t fb_background[2][DISPLAY_BUFFER_STRIDE_BYTES_INPUT0 * DISPLAY_VSIZE_INPUT0] BSP_ALIGN_VARIABLE(64) BSP_PLACE_IN_SECTION(BSP_UNINIT_SECTION_PREFIX ".sdram_noinit");
+        uint8_t g_display_sdram[1][DISPLAY_BUFFER_STRIDE_BYTES_INPUT0 * DISPLAY_VSIZE_INPUT0] BSP_ALIGN_VARIABLE(64) BSP_PLACE_IN_SECTION(BSP_UNINIT_SECTION_PREFIX ".sdram_nocache");
         #else
 /** Graphics Layer 1 is specified not to be used when starting */
 #endif
@@ -325,7 +345,7 @@ const display_cfg_t g_display_cfg =
         .input[0] =
         {
 #if GLCDC_CFG_LAYER_1_ENABLE
-                .p_base              = (uint32_t *)&fb_background[0],
+                .p_base              = (uint32_t *)&g_display_sdram[0],
                 #else
           .p_base = NULL,
 #endif
@@ -435,7 +455,7 @@ const display_cfg_t g_display_cfg =
             .input =
             {
                 #if (true)
-                .p_base              = (uint32_t *)&fb_background[0],
+                .p_base              = (uint32_t *)&g_display_sdram[0],
                 #else
                 .p_base              = NULL,
                 #endif

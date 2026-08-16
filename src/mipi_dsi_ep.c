@@ -39,15 +39,9 @@
 uint32_t count;
 
 /* User defined functions */
-static void display_draw (uint16_t * framebuffer);
-static uint8_t mipi_dsi_set_display_time (void);
-static uint8_t process_input_data(void);
 void handle_error (fsp_err_t err,  const char * err_str);
 void touch_screen_reset(void);
 void external_irq_callback(external_irq_callback_args_t *p_args);
-static fsp_err_t wait_for_mipi_dsi_event (mipi_dsi_phy_status_t event);
-static void mipi_dsi_ulps_enter(void);
-static void mipi_dsi_ulps_exit(void);
 void show_pic();
 void show_pic2(void);
 
@@ -63,31 +57,13 @@ uint8_t read_data              = RESET_VALUE;
 uint16_t period_sec           = RESET_VALUE;
 volatile mipi_dsi_phy_status_t g_phy_status;
 volatile mipi_dsi_video_status_t g_mipi_video_status;
-timer_info_t timer_info = { .clock_frequency = RESET_VALUE, .count_direction = RESET_VALUE, .period_counts = RESET_VALUE };
-volatile bool g_vsync_flag, g_message_sent, g_ulps_flag, g_irq_state, g_timer_overflow  = RESET_FLAG;
+volatile bool g_vsync_flag, g_message_sent = RESET_FLAG;
 volatile uint32_t g_glcdc_gr1_underflow_count = 0;
 volatile uint32_t g_glcdc_gr2_underflow_count = 0;
 coord_t touch_coordinates[5];
 
-static bool glcdc_wait_line_detect(void)
-{
-    uint32_t timeout = GLCDC_LINE_DETECT_TIMEOUT_COUNT;
-
-    while ((!g_vsync_flag) && (timeout > 0U))
-    {
-        timeout--;
-    }
-
-    return (timeout > 0U);
-}
 
 
-static void lcd_clean_framebuffer(uint16_t * p_framebuffer)
-{
-#if defined(RENESAS_CORTEX_M85)
-    SCB_CleanDCache_by_Addr(p_framebuffer, (int32_t) sizeof(fb_background[0]));
-#endif
-}
 
 
 static void lcd_show_framebuffer(uint16_t * p_framebuffer)
@@ -97,58 +73,7 @@ static void lcd_show_framebuffer(uint16_t * p_framebuffer)
     g_vsync_flag = RESET_FLAG;
 }
 
-static bool mipi_dsi_try_send_cmd(uint8_t const * p_payload,
-                                  uint16_t payload_size,
-                                  mipi_dsi_cmd_id_t cmd_id,
-                                  mipi_dsi_cmd_flag_t flags)
-{
-    fsp_err_t err;
-    uint32_t timeout = MIPI_DSI_POST_VIDEO_CMD_TIMEOUT_COUNT;
-    mipi_dsi_cmd_t msg =
-    {
-      .channel = 0,
-      .cmd_id = cmd_id,
-      .flags = flags,
-      .tx_len = payload_size,
-      .p_tx_buffer = p_payload,
-    };
 
-    g_message_sent = RESET_FLAG;
-    err = R_MIPI_DSI_Command(&g_mipi_dsi0_ctrl, &msg);
-    if (FSP_SUCCESS != err)
-    {
-        APP_PRINT("MIPI DSI post-video command 0x%02x failed: 0x%08x\r\n", p_payload[0], err);
-        return false;
-    }
-
-    while ((!g_message_sent) && (timeout > 0U))
-    {
-        timeout--;
-    }
-
-    if (0U == timeout)
-    {
-        APP_PRINT("MIPI DSI post-video command 0x%02x timeout\r\n", p_payload[0]);
-        return false;
-    }
-
-    return true;
-}
-
-static void st7102_post_video_relock(void)
-{
-    static const uint8_t colmod_rgb565[] = {0x3A, 0x55};
-    static const uint8_t madctl_rgb[]    = {0x36, 0x00};
-    static const uint8_t display_on[]    = {0x29};
-    /* ESP initializes the DPI video panel before its final Display On call.
-     * Re-send these after GLCDC starts, but do not trap if a command is blocked in video mode.
-     * NOTE: TE (0x35) is NOT sent here. In DPI video mode, TE is unnecessary;
-     *       enabling it without host-side TE sync can cause tearing artifacts.
-     */
-    (void) mipi_dsi_try_send_cmd(colmod_rgb565, sizeof(colmod_rgb565), MIPI_DSI_CMD_ID_DCS_SHORT_WRITE_1_PARAM, MIPI_DSI_CMD_FLAG_LOW_POWER);
-    (void) mipi_dsi_try_send_cmd(madctl_rgb,    sizeof(madctl_rgb),    MIPI_DSI_CMD_ID_DCS_SHORT_WRITE_1_PARAM, MIPI_DSI_CMD_FLAG_LOW_POWER);
-    (void) mipi_dsi_try_send_cmd(display_on,    sizeof(display_on),    MIPI_DSI_CMD_ID_DCS_SHORT_WRITE_0_PARAM, MIPI_DSI_CMD_FLAG_LOW_POWER);
-}
 
 
 void DWT_init();
@@ -241,10 +166,11 @@ const lcd_table_setting_t g_lcd_init_ydp430_st7102[] =
     {1,   {0x29}, MIPI_DSI_CMD_ID_DCS_SHORT_WRITE_0_PARAM, MIPI_DSI_CMD_FLAG_LOW_POWER},
     {120, {0},    MIPI_DSI_DISPLAY_CONFIG_DATA_DELAY_FLAG,  (mipi_dsi_cmd_flag_t) 0},
 
-    /* TE ON (0x35,0x00): vendor file sends this after Display On, before video mode.
-     * ST7102 uses this to synchronize internal panel refresh timing.
-     * Without TE ON, panel refresh may drift → ghosting/double-image. */
-    {2,   {0x35, 0x00}, MIPI_DSI_CMD_ID_DCS_SHORT_WRITE_1_PARAM, MIPI_DSI_CMD_FLAG_LOW_POWER},
+    /* TE OFF (0x34): In DPI video mode, TE is unnecessary.
+     * Enabling TE (0x35) without host-side TE sync can cause tearing/flickering artifacts
+     * because the panel's internal refresh timing conflicts with the continuous DPI video stream.
+     * Use TE OFF to let the panel refresh synchronously with the incoming DPI video data. */
+    {1,   {0x34}, MIPI_DSI_CMD_ID_DCS_SHORT_WRITE_0_PARAM, MIPI_DSI_CMD_FLAG_LOW_POWER},
     {10,  {0},    MIPI_DSI_DISPLAY_CONFIG_DATA_DELAY_FLAG,  (mipi_dsi_cmd_flag_t) 0},
 
     {0x00, {0}, MIPI_DSI_DISPLAY_CONFIG_DATA_END_OF_TABLE, (mipi_dsi_cmd_flag_t) 0},
@@ -319,7 +245,7 @@ color_pattern_t color_p = simple;
 void show_RGB(uint8_t R, uint8_t G, uint8_t B);
 void show_RGB(uint8_t R, uint8_t G, uint8_t B)
 {
-    uint16_t * p = (uint16_t *)&fb_background[0][0];
+    uint16_t * p = (uint16_t *)&g_display_sdram[0][0];
     uint16_t color_temp;
     color_temp = (uint16_t)(((R&0x1F)<<11)|((G&0x3F)<<5)|(B&0x1F));
 
@@ -337,7 +263,7 @@ void show_RGB(uint8_t R, uint8_t G, uint8_t B)
 void show_GRAY();
 void show_GRAY()
 {
-    uint16_t * p = (uint16_t *)&fb_background[0][0];
+    uint16_t * p = (uint16_t *)&g_display_sdram[0][0];
     uint16_t color_temp;
     color_temp = (uint16_t)((((0x1F/8)&0x1F)<<11)|(((0x3F/8)&0x3F)<<5)|((0x1F/8)&0x1F));
 
@@ -363,7 +289,7 @@ void show_pic2(void)
     const uint32_t pic_w = 222;
     const uint32_t pic_h = 480;
 
-    uint16_t * p = (uint16_t *)&fb_background[0][0];
+    uint16_t * p = (uint16_t *)&g_display_sdram[0][0];
 
     uint32_t x_offset = (g_hz_size - pic_w) / 2;
     uint32_t y_offset = (g_vr_size - pic_h) / 2;
@@ -390,234 +316,6 @@ void show_pic2(void)
     lcd_show_framebuffer(p);
 }
 
-
-
-
-/*******************************************************************************************************************//**
- * @brief      User-defined function to draw the current display to a framebuffer.
- *
- * @param[in]  framebuffer   Pointer to frame buffer.
- * @retval     FSP_SUCCESS : Upon successful operation, otherwise: failed.
- **********************************************************************************************************************/
-static uint8_t mipi_dsi_set_display_time (void)
-{
-    fsp_err_t err = FSP_SUCCESS;
-    if(APP_CHECK_DATA)
-        {
-            /* Conversion from input string to integer value */
-            read_data = process_input_data();
-            switch (read_data)
-            {
-                /* Set 5 seconds to enter Ultra-Low Power State (ULPS)  */
-                case RTT_SELECT_5S:
-                {
-                    APP_PRINT(MIPI_DSI_INFO_5S);
-                    period_sec = GPT_DESIRED_PERIOD_5SEC;
-                    break;
-                }
-
-                /* Set 15 seconds to enter Ultra-Low Power State (ULPS)  */
-                case RTT_SELECT_15S:
-                {
-                    APP_PRINT(MIPI_DSI_INFO_15S);
-                    period_sec = GPT_DESIRED_PERIOD_15SEC;
-                    break;
-                }
-
-                /* Set 30 seconds to enter Ultra-Low Power State (ULPS)  */
-                case RTT_SELECT_30S:
-                {
-                    APP_PRINT(MIPI_DSI_INFO_30S);
-                    period_sec = GPT_DESIRED_PERIOD_30SEC;
-                    break;
-                }
-                /* Stop timer to always display.*/
-                case RTT_SELECT_DISABLE_ULPS:
-                {
-                    APP_PRINT(MIPI_DSI_INFO_DISABLE_ULPS);
-                    g_timer_overflow = RESET_FLAG;
-                    err = R_GPT_Stop (&g_timer0_ctrl);
-                    APP_ERR_RETURN(err, " ** GPT Stop API failed ** \r\n");
-                    break;
-                }
-                default:// 无效输入：提示重新输入
-                {
-                    APP_PRINT("\r\nInvalid Option Selected\r\n");
-                    APP_PRINT(MIPI_DSI_MENU);
-                    break;
-                }
-            }
-
-            if (RTT_SELECT_DISABLE_ULPS != read_data)
-            {
-                /* Calculate the desired period based on the current clock. Note that this calculation could overflow if the
-                 * desired period is larger than UINT32_MAX / pclkd_freq_hz. A cast to uint64_t is used to prevent this. */
-                /* 计算定时器计数值：周期(秒) × 定时器时钟频率 → 避免溢出用uint64_t转换 */
-                uint32_t period_counts = (uint32_t) (((uint64_t) timer_info.clock_frequency * period_sec) / GPT_UNITS_SECONDS);
-                /* Set the calculated period. */// 设置定时器周期（核心：告诉GPT何时溢出）
-                err = R_GPT_PeriodSet (&g_timer0_ctrl, period_counts);
-                APP_ERR_RETURN(err, " ** GPT PeriodSet API failed ** \r\n");
-                err = R_GPT_Reset (&g_timer0_ctrl);// 重置定时器（清空计数值）
-                APP_ERR_RETURN(err, " ** GPT Reset API failed ** \r\n");
-                g_timer_overflow = RESET_FLAG;// 重置溢出标志
-                err = R_GPT_Start (&g_timer0_ctrl);// 启动定时器
-                APP_ERR_RETURN(err, " ** GPT Start API failed ** \r\n");
-            }
-            /* Reset buffer*/
-            read_data = RESET_VALUE; /* 4. 重置输入缓存，准备下一次输入 */
-        }
-
-        return err;
-}
-
-
-
-/*******************************************************************************************************************//**
- * @brief      User-defined function to draw the current display to a framebuffer.
- *
- * @param[in]  framebuffer    Pointer to frame buffer.
- * @retval     None.
- **********************************************************************************************************************/
-static void display_draw (uint16_t * framebuffer)//帧缓冲区绘制函数
-{
-    /* Draw buffer */
-    // 1. 定义8种颜色的RGB像素值（注：结合上下文是RGB565/RGB888格式，需匹配屏幕配置）
-    uint16_t color565[COLOR_BAND_COUNT]= {
-        RGB_565_BLUE,
-        RGB_565_GREEN,
-        RGB_565_RED,
-        0x0000U,
-        RGB_565_WHITE,
-        (uint16_t) (RGB_565_RED | RGB_565_GREEN),
-        (uint16_t) (RGB_565_GREEN | RGB_565_BLUE),
-        (uint16_t) (RGB_565_RED | RGB_565_BLUE)
-    };
-    // 2. 计算每个颜色条带的水平宽度：屏幕总宽度 / 颜色数量（等分）
-    uint16_t bit_width = g_hz_size / COLOR_BAND_COUNT;
-    // 3. 外层循环：遍历屏幕垂直方向（行数，g_vr_size是屏幕高度
-    for (uint32_t y = 0; y < g_vr_size; y++)
-    {
-        // 4. 内层循环：遍历屏幕水平方向（列数，g_hz_size是屏幕宽度）
-        for (uint32_t x = 0; x < g_hz_size; x++)
-        {
-            uint32_t bit = x / bit_width;
-            framebuffer[x] = color565[bit];
-        }
-        framebuffer += g_hstride;
-    }
-
-}
-
-/*******************************************************************************************************************//**
- * @brief      Touch IRQ callback function
- * NOTE:       This function will return to the highest priority available task.
- * @param[in]  p_args  IRQ callback data
- * @retval     None.
- **********************************************************************************************************************/
-void external_irq_callback(external_irq_callback_args_t *p_args)
-{
-    if (g_external_irq_cfg.channel == p_args->channel)
-    {
-        g_irq_state =true;
-    }
-}
-
-/*****************************************************************************************************************
- *  @brief      Process input string to integer value
- *
- *  @param[in]  None
- *  @retval     integer value of input string.
- ****************************************************************************************************************/
-static uint8_t process_input_data(void)
-{
-    unsigned char buf[BUFFER_SIZE_DOWN] = {INITIAL_VALUE};
-    uint32_t num_bytes                  = RESET_VALUE;
-    uint8_t  value                      = RESET_VALUE;
-
-    // 2. 循环等待有效输入：只要读取到的字节数为0，就一直等待
-    while (RESET_VALUE == num_bytes)
-    {
-        // APP_CHECK_DATA：宏定义，检查串口是否有数据可读（底层封装了串口状态查询）
-        if (APP_CHECK_DATA)
-        {
-            // APP_READ：宏定义，从串口读取数据到buf缓冲区，返回实际读取的字节数
-            num_bytes = APP_READ(buf);
-            // 若读取到的字节数仍为0，提示输入无效
-            if (RESET_VALUE == num_bytes)
-            {
-                APP_PRINT("\r\nInvalid Input\r\n");
-            }
-        }
-    }
-
-    /* Conversion from input string to integer value */
-    // 3. 字符串转整数：将buf中的ASCII字符串转换为uint8_t类型的整数
-    // atoi：标准库函数，把字符串转成int；此处强制转换为uint8_t（适配8位指令配置）
-    value =  (uint8_t) (atoi((char *)buf));
-    return value;
-}
-
-/*******************************************************************************************************************//**
- * @brief      This function is used to enter Ultra-low Power State (ULPS) and turn off the backlight.
- *
- * @param[in]  none
- * @retval     none
- **********************************************************************************************************************/
-static void mipi_dsi_ulps_enter(void)
-{
-    fsp_err_t err = FSP_SUCCESS;
-    uint32_t timedelay_us = ENTER_ULPS_DELAY;
-    /* Enter Ultra-low Power State (ULPS) */
-    g_phy_status = MIPI_DSI_PHY_STATUS_NONE;
-    err = R_MIPI_DSI_UlpsEnter (&g_mipi_dsi0_ctrl, (mipi_dsi_lane_t) MIPI_DSI_LANE_DATA_ALL);
-    handle_error (err, "** MIPI DSI UlpsEnter API failed ** \r\n");
-
-    /* Wait for a ULPS event */
-    err = wait_for_mipi_dsi_event(MIPI_DSI_PHY_STATUS_DATA_LANE_ULPS_ENTER);
-    handle_error (err, "** MIPI DSI phy event timeout ** \r\n");
-    g_ulps_flag = SET_FLAG;
-    APP_PRINT("\r\nEntered Ultra-low Power State (ULPS)\r\n");
-
-    /* Wait about 8 seconds */
-    while (!g_irq_state)
-    {
-        timedelay_us--;
-        R_BSP_SoftwareDelay (1U, BSP_DELAY_UNITS_MICROSECONDS);
-
-        /* Check for time elapse*/
-        if (RESET_VALUE == timedelay_us)
-        {
-            /* Display Off */
-            R_IOPORT_PinWrite (&g_ioport_ctrl, PIN_DISPLAY_BACKLIGHT, BSP_IO_LEVEL_LOW);
-            break;
-        }
-    }
-}
-
-/*******************************************************************************************************************//**
- * @brief      This function is used to exit Ultra-low Power State (ULPS) and turn on the backlight.
- *
- * @param[in]  none
- * @retval     none
- **********************************************************************************************************************/
-static void mipi_dsi_ulps_exit(void)
-{
-    fsp_err_t err = FSP_SUCCESS;
-    /* Exit Ultra-low Power State (ULPS) */
-    g_phy_status = MIPI_DSI_PHY_STATUS_NONE;
-    err = R_MIPI_DSI_UlpsExit (&g_mipi_dsi0_ctrl, (mipi_dsi_lane_t) (MIPI_DSI_LANE_DATA_ALL));
-    handle_error (err, "** MIPI DSI UlpsExit API failed ** \r\n");
-
-    /* Wait for a ULPS event */
-    err = wait_for_mipi_dsi_event(MIPI_DSI_PHY_STATUS_DATA_LANE_ULPS_EXIT);
-    handle_error (err, "** MIPI DSI phy event timeout ** \r\n");
-    g_ulps_flag = RESET_FLAG;
-    APP_PRINT("\r\nExited Ultra-low Power State (ULPS) due to touch with co-ordinates x: %u, ; y: %u. \r\n", touch_coordinates[0].x, touch_coordinates[0].y);
-
-    /* Display On */
-    R_IOPORT_PinWrite (&g_ioport_ctrl, PIN_DISPLAY_BACKLIGHT, BSP_IO_LEVEL_HIGH);
-}
-
 /*******************************************************************************************************************//**
  * @brief      This function is used to reset the LCD after power on.
  *
@@ -637,21 +335,6 @@ void touch_screen_reset(void)
 }
 
 /*******************************************************************************************************************//**
- * @brief       This function is used to Wait for mipi dsi event.
- *
- * @param[in]   event   : Expected events
- * @retval      FSP_SUCCESS : Upon successful operation, otherwise: failed
- **********************************************************************************************************************/
-static fsp_err_t wait_for_mipi_dsi_event (mipi_dsi_phy_status_t event)
-{
-    uint32_t timeout = R_FSP_SystemClockHzGet(FSP_PRIV_CLOCK_ICLK) / 10;
-    while (timeout-- && ((g_phy_status & event) != event))
-    {
-        ;
-    }
-    return timeout ? FSP_SUCCESS : FSP_ERR_TIMEOUT;
-}
-/*******************************************************************************************************************//**
  *  @brief       This function handles errors, closes all opened modules, and prints errors.
  *
  *  @param[in]   err       error status
@@ -665,14 +348,6 @@ void handle_error (fsp_err_t err,  const char * err_str)
         /* Print the error */
         APP_ERR_PRINT(err_str);
 
-        /* Close opened GPT module*/
-        if(RESET_VALUE != g_timer0_ctrl.open)
-        {
-            if(FSP_SUCCESS != R_GPT_Close (&g_timer0_ctrl))
-            {
-                APP_ERR_PRINT("GPT Close API failed\r\n");
-            }
-        }
         /* Close opened GLCD module*/
         if(RESET_VALUE != g_display_ctrl.state)
         {
@@ -773,20 +448,6 @@ void mipi_dsi_callback(mipi_dsi_callback_args_t *p_args)
     }
 }
 
-/*******************************************************************************************************************//**
- * @brief      Callback functions for gpt interrupts
- *
- * @param[in]  p_args    Callback arguments
- * @retval     none
- **********************************************************************************************************************/
-void gpt_callback(timer_callback_args_t *p_args)
-{
-    /* Check for the event */
-    if (TIMER_EVENT_CYCLE_END == p_args->event)
-    {
-        g_timer_overflow = SET_FLAG;
-    }
-}
 uint16_t color_dtcm[1]  = {RGB_565_RED};
 
 
@@ -828,8 +489,6 @@ void mipi_dsi_entry(void)
 
     /* Initialize GLCDC module */
     R_GLCDC_Open(&g_display_ctrl, &g_display_cfg);
-    /* Initialize GPT module */
-    R_GPT_Open(&g_timer0_ctrl, &g_timer0_cfg);// GPT（通用定时器）：用于ULPS休眠计时
     /* LCD reset */
 //    touch_screen_reset();// 触摸屏+LCD额外复位
 
@@ -863,17 +522,11 @@ void mipi_dsi_entry(void)
  **********************************************************************************************************************/
  void mipi_dsi_start_display(void)
 {
-    uint16_t * const p    = (uint16_t *)&fb_background[1][0];
+    uint16_t * const p    = (uint16_t *)&g_display_sdram[0][0];
     
     lcd_show_framebuffer(p);
 
     /* Initialize buffer pointers */
-    g_buffer_size = (uint32_t) (g_hstride * g_vr_size * BYTES_PER_PIXEL);
-    gp_single_buffer = (uint8_t*) g_display_cfg.input[0].p_base;
-
-    /* Double buffer for drawing color bands with good quality */
-    gp_double_buffer = gp_single_buffer + g_buffer_size;
-
     /* Enable external interrupt */
     R_ICU_ExternalIrqEnable(&g_external_irq_ctrl);//9. 使能外部中断（如触摸中断）
     /* Handle error */
@@ -889,7 +542,7 @@ void mipi_dsi_entry(void)
  **********************************************************************************************************************/
 void test_single_pixel(void)
 {
-    uint16_t *p = (uint16_t *)&fb_background[0][0];
+    uint16_t *p = (uint16_t *)&g_display_sdram[0][0];
 
     /* 1. Fill screen black */
     for (uint32_t y = 0; y < g_vr_size; y++)//800

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2020 - 2024 Renesas Electronics Corporation and/or its affiliates
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -53,14 +53,15 @@
 
 /* Functions declarations */
 fsp_err_t ceu_init(uint8_t *const p_buffer, uint32_t width, uint32_t height);
+fsp_err_t ceu_capture_start(uint8_t *const p_buffer);
+fsp_err_t ceu_capture_wait(uint32_t *used_ms, uint32_t timeout_ms);
 fsp_err_t ceu_operation(uint8_t *const p_buffer, uint32_t *used_ms);
-fsp_err_t ceu_capture_one_frame(uint8_t *const p_capture_buffer,
-                                uint32_t width,
-                                uint32_t height,
-                                uint32_t *p_used_ms);
 //fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t width, uint32_t height);
 void ycbcr_to_rgb888_transform(void *ycbcr_buffer_pointer, void *rgb_buffer_pointer, uint32_t width, uint32_t height);
 void yuv422_to_rgb888(const void *inbuf, void *outbuf, uint16_t width, uint16_t height);
 void yuv422_to_rgb565(const void *inbuf, void *outbuf, uint16_t width, uint16_t height);
 void camera_signal_probe(void);
+extern volatile bool g_capture_ready;   /* CEU 帧完成标志（回调置位，主循环轮询） */
+void ceu_recover(void);                 /* 断流自愈：重开 CEU + 换同步配置（无帧超时由主循环调用） */
+
 #endif /* CEU_H_ */

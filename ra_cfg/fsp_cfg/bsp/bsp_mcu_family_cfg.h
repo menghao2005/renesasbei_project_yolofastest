@@ -102,7 +102,7 @@
             (((1 > 0) ? 0U : 1U) << 9) /* IIC0 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 11) /* USBFS */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 12) /* USBHS */ | \
-            (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 16) /* OSPI0 */ | \
+            (((1 > 0) ? 0U : 1U) << 16) /* OSPI0 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 17) /* OSPI1 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 18) /* SPI1 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 19) /* SPI0 */ | \
@@ -168,8 +168,8 @@
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 20) /* GPT11 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 21) /* GPT10 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 27) /* GPT4 */ | \
-            (((1 > 0) ? 0U : 1U) << 28) /* GPT3 */ | \
-            (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 29) /* GPT2 */ | \
+            (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 28) /* GPT3 */ | \
+            (((1 > 0) ? 0U : 1U) << 29) /* GPT2 */ | \
             (((1 > 0) ? 0U : 1U) << 30) /* GPT1 */ | \
             (((1 > 0) ? 0U : 1U) << 31) /* GPT0 */)
 #endif
@@ -179,7 +179,7 @@
             (1U << 1) /* SRAM1 */ | \
             (1U << 2) /* SRAM2 */ | \
             (1U << 3) /* SRAM3 */ | \
-            (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 16) /* NPU */ | \
+            (((1 > 0) ? 0U : 1U) << 16) /* NPU */ | \
             (1U << 22) /* DTC0_DMAC0 */ | \
             (1U << 23) /* DTC1_DMAC1 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 31) /* ELC */)
@@ -266,7 +266,7 @@
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 3U) /* External IRQ3 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 4U) /* External IRQ4 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 5U) /* External IRQ5 */ | \
-            (((1 > 0) ? 0U : 1U) << 6U) /* External IRQ6 */ | \
+            (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 6U) /* External IRQ6 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 7U) /* External IRQ7 */ | \
             (((1 > 0) ? 0U : 1U) << 8U) /* External IRQ8 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 9U) /* External IRQ9 */ | \
@@ -280,7 +280,7 @@
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 17U) /* External IRQ17 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 18U) /* External IRQ18 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 19U) /* External IRQ19 */ | \
-            (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 20U) /* External IRQ20 */ | \
+            (((1 > 0) ? 0U : 1U) << 20U) /* External IRQ20 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 21U) /* External IRQ21 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 22U) /* External IRQ22 */ | \
             (((RA_NOT_DEFINED > 0) ? 0U : 1U) << 23U) /* External IRQ23 */ | \

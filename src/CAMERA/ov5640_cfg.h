@@ -24,9 +24,9 @@ typedef struct
 } ov5640_reg_cfg_t;
 
 extern const uint8_t default_regs[][3];
-extern ov5640_reg_cfg_t ov5640_init_cfg[207];
+extern ov5640_reg_cfg_t ov5640_init_cfg[257];
 //extern ov5640_reg_cfg_t ov5640_init_cfg[254];
-extern ov5640_reg_cfg_t ov5640_rgb565_cfg[46]; //45
+extern ov5640_reg_cfg_t ov5640_rgb565_cfg[51];
 //extern ov5640_reg_cfg_t ov5640_rgb565_cfg[2];
 
 extern ov5640_reg_cfg_t ov5640_jpeg_cfg[41];

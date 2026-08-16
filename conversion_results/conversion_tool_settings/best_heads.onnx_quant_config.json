@@ -1,0 +1,25 @@
+{
+  "skip_preprocess": "False",
+  "num_calibrate_samples": -1,
+  "calibrate_method": "MinMax",
+  "percentile_value": 99.999,
+  "quant_options": "",
+  "drp_compiler_version": "100",
+  "cpu_data_type": "float16",
+  "nodes": [
+    {
+      "name": "images",
+      "calibrate_sample_dir": "C:\\Users\\menghao2005\\Desktop\\YoloFastest\\ModelZoo-YOLOFastest-for-ARM-U55-M85\\data\\train_fruit_test\\images\\calib_fruit_test",
+      "mean": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "std": [
+        255.0,
+        255.0,
+        255.0
+      ]
+    }
+  ]
+}

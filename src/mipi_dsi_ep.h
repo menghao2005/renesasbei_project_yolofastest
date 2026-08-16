@@ -35,14 +35,6 @@
 #define RESET_FLAG                                   (false)
 #define SET_FLAG                                     (true)
 #define INITIAL_VALUE                                ('\0')
-#define RTT_SELECT_5S                                (1U)
-#define RTT_SELECT_15S                               (2U)
-#define RTT_SELECT_30S                               (3U)
-#define RTT_SELECT_DISABLE_ULPS                      (4U)
-#define GPT_UNITS_SECONDS                            (1)
-#define GPT_DESIRED_PERIOD_5SEC                      (5)
-#define GPT_DESIRED_PERIOD_15SEC                     (15)
-#define GPT_DESIRED_PERIOD_30SEC                     (30)
 
 /* CPKHMI RA8D1 V1 */
 #define PIN_DISPLAY_INT                              (BSP_IO_PORT_00_PIN_02)
@@ -50,18 +42,6 @@
 #define PIN_DISPLAY_BACKLIGHT                        (BSP_IO_PORT_09_PIN_07)
 
 
-#define ENTER_ULPS_DELAY                             (8000000)
-#define MIPI_DSI_MENU               "\r\nSet time to enter Ultra-Low Power State (ULPS):"\
-                                    "\r\n1. Input '1' to enter ULPS after 5s."\
-                                    "\r\n2. Input '2' to enter ULPS after 15s."\
-                                    "\r\n3. Input '3' to enter ULPS after 30s."\
-                                    "\r\n4. Input '4' to always display(Default).\r\n"\
-                                    "\r\nNote: After entering Ultra Low Power State (ULPS), please touch the screen to exit this mode."\
-                                    "\r\nUser Input:  "
-#define MIPI_DSI_INFO_5S            "Enter ULPS after 5 seconds of display\r\n"
-#define MIPI_DSI_INFO_15S           "Enter ULPS after 15 seconds of display\r\n"
-#define MIPI_DSI_INFO_30S           "Enter ULPS after 30 seconds of display\r\n"
-#define MIPI_DSI_INFO_DISABLE_ULPS  "Always display\r\n"
 
 typedef struct
 {
@@ -71,7 +51,7 @@ typedef struct
     mipi_dsi_cmd_flag_t flags;
 } lcd_table_setting_t;
 
-extern volatile bool g_vsync_flag, g_message_sent, g_ulps_flag, g_irq_state, g_timer_overflow;
+extern volatile bool g_vsync_flag, g_message_sent;
 extern const lcd_table_setting_t g_lcd_init_ydp430_st7102[];
 void mipi_dsi_push_table (const lcd_table_setting_t *table);
 void mipi_dsi_start_display ();

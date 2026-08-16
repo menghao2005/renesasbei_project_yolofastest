@@ -1,5 +1,6 @@
 #include "Stepping_Motor.h"
 #include <stdio.h>
+#include <stdint.h>
 
 #define GPT_GTWP_RESET_VALUE        (0xA500U)
 #define GPT_GTIO_TOGGLE_ON_COMPARE  (0x03U)
@@ -9,6 +10,9 @@
 #define MOTOR_MIN_DUTY_PERCENT      (1U)
 #define MOTOR_MAX_DUTY_PERCENT      (99U)
 #define MOTOR_TIME_BASE_HZ          (10000U)
+#define MOTOR_WHEEL_DIAMETER_CM     (9.50f)
+#define MOTOR_STEPS_PER_REVOLUTION  (400.0f)
+#define MOTOR_PI                    (3.1415926535f)
 
 #define LEFT_STEP_PIN               BSP_IO_PORT_01_PIN_05
 #define RIGHT_STEP_PIN              BSP_IO_PORT_01_PIN_04
@@ -55,6 +59,8 @@ static motor_runtime_t g_motor_runtime[NumMotors] =
 };
 
 static bool g_driver_opened = false;
+static bool g_distance_active = false;
+static uint32_t g_distance_target_steps = 0U;
 
 static void gpt_log_error(char const * const api_name, fsp_err_t err)
 {
@@ -192,22 +198,22 @@ static void gpt_oc_hw_configure(void)
     gpt_instance_ctrl_t * const p_ctrl = &g_timer_step1_ctrl;
     uint32_t previous_wp = gpt_write_protect_disable(p_ctrl);
 
-    /* 关闭 A/B buffer，保证中断里直接写 GTCCRA/GTCCRB 就立即生效。 */
+    /* Disable A/B buffering so ISR writes to GTCCRA/GTCCRB take effect immediately. */
     p_ctrl->p_reg->GTBER = GPT_GTBER_DISABLE_AB_BUFFER;
 
-    /* 左侧 STEP: 初始低电平，命中 GTCCRA 时翻转。 */
+    /* Left STEP starts low and toggles on GTCCRA compare match. */
     p_ctrl->p_reg->GTIOR_b.GTIOA  = GPT_GTIO_TOGGLE_ON_COMPARE;
     p_ctrl->p_reg->GTIOR_b.OADFLT = GPT_PIN_LEVEL_LOW;
     p_ctrl->p_reg->GTIOR_b.OAHLD  = 1U;
     p_ctrl->p_reg->GTIOR_b.OAE    = 1U;
 
-    /* 右侧 STEP: 初始低电平，命中 GTCCRB 时翻转。 */
+    /* Right STEP starts low and toggles on GTCCRB compare match. */
     p_ctrl->p_reg->GTIOR_b.GTIOB  = GPT_GTIO_TOGGLE_ON_COMPARE;
     p_ctrl->p_reg->GTIOR_b.OBDFLT = GPT_PIN_LEVEL_LOW;
     p_ctrl->p_reg->GTIOR_b.OBHLD  = 1U;
     p_ctrl->p_reg->GTIOR_b.OBE    = 1U;
 
-    /* 打开 A/B 共享中断源，用同一个回调处理左右两侧输出比较。 */
+    /* Enable A/B compare interrupts and dispatch both sides in one callback. */
     p_ctrl->p_reg->GTINTAD_b.GTINTA = 1U;
     p_ctrl->p_reg->GTINTAD_b.GTINTB = 1U;
 
@@ -315,10 +321,10 @@ static void motor_side_service(Motor_Number side)
 
     OC_channel[side].Sum++;
 
-    /* 中断触发时引脚已经翻转，先同步当前电平状态。 */
+    /* The pin has toggled when the ISR fires, so mirror the current output level first. */
     g_motor_runtime[side].output_is_high = !g_motor_runtime[side].output_is_high;
 
-    /* 参考 STM32 的做法：高电平阶段走 duty*Pulse，低电平阶段走 Pulse-high。 */
+    /* Match the STM32 timing: high segment is duty*Pulse, low segment is Pulse-high. */
     segment_counts = motor_next_segment_counts_get(side);
     g_motor_runtime[side].next_compare_counts += segment_counts;
     motor_compare_write(side, g_motor_runtime[side].next_compare_counts);
@@ -326,6 +332,7 @@ static void motor_side_service(Motor_Number side)
 
 void Stepping_Motor_Go_Init(void)
 {
+    g_distance_active = false;
     back_flag = 0;
     Turn_Flag = 0;
     motor_motion_start(BSP_IO_LEVEL_LOW, BSP_IO_LEVEL_HIGH,
@@ -364,6 +371,8 @@ void Stepping_Motor_Stopping_Init(void)
 {
     fsp_err_t err;
 
+    g_distance_active = false;
+
     if (!g_driver_opened)
     {
         return;
@@ -387,6 +396,75 @@ void Stepping_Motor_Stopping_Init(void)
     g_motor_runtime[RightSide].output_is_high = false;
 
     printf("STEP stop\r\n");
+}
+
+void Go_Distance_Init(float distance_cm)
+{
+    float target_steps_f;
+    uint32_t target_steps;
+
+    if (distance_cm <= 0.0f)
+    {
+        g_distance_target_steps = 0U;
+        g_distance_active = false;
+        Stepping_Motor_Stopping_Init();
+        return;
+    }
+
+    target_steps_f = (distance_cm / (MOTOR_WHEEL_DIAMETER_CM * MOTOR_PI)) * MOTOR_STEPS_PER_REVOLUTION;
+    if (target_steps_f > (float) UINT32_MAX)
+    {
+        target_steps = UINT32_MAX;
+    }
+    else
+    {
+        target_steps = (uint32_t) (target_steps_f + 0.5f);
+    }
+
+    Stepping_Motor_Go_Init();
+    g_distance_target_steps = target_steps;
+    g_distance_active = (g_distance_target_steps > 0U);
+
+    if (!g_distance_active)
+    {
+        Stepping_Motor_Stopping_Init();
+    }
+}
+
+void Stepping_Motor_GoDistance_Init(uint32_t distance_mm)
+{
+    Go_Distance_Init((float) distance_mm / 10.0f);
+}
+
+bool Stepping_Motor_DistanceService(void)
+{
+    uint32_t left_edges;
+    uint32_t right_edges;
+    uint32_t forward_steps;
+
+    if (!g_distance_active)
+    {
+        return false;
+    }
+
+    left_edges = OC_channel[LeftSide].Sum;
+    right_edges = OC_channel[RightSide].Sum;
+
+    /* Match the STM32 Go_Distance() idea: average both sides and convert two STEP edges to one pulse. */
+    forward_steps = (uint32_t) (((uint64_t) left_edges + (uint64_t) right_edges) / 4U);
+
+    if (forward_steps < g_distance_target_steps)
+    {
+        return false;
+    }
+
+    Stepping_Motor_Stopping_Init();
+    return true;
+}
+
+bool Stepping_Motor_DistanceIsBusy(void)
+{
+    return g_distance_active;
 }
 
 void Stepping_Motor_SetSpeed(uint32_t left_pulse, uint32_t right_pulse)
@@ -430,7 +508,7 @@ void G_Timer_DelayElapsedCallback(timer_callback_args_t * p_args)
         return;
     }
 
-    /* FSP 未开启 compare_match_status 时，共享中断通常会上报为 CAPTURE_A/B。 */
+    /* When compare_match_status is disabled, the shared interrupt is usually reported as CAPTURE_A/B. */
     //实测用的CAPTURE_A/B
     if ((TIMER_EVENT_CAPTURE_A == p_args->event) || (TIMER_EVENT_COMPARE_A == p_args->event))
     {

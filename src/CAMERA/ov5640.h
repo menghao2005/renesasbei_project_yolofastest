@@ -211,6 +211,7 @@ uint8_t ov5640_set_output_format(ov5640_output_format_t format);                
 uint8_t ov5640_set_isp_input_window(uint16_t x, uint16_t y, uint16_t width, uint16_t height);           /* 设置OV5640模块ISP输入窗口尺寸 */
 uint8_t ov5640_set_pre_scaling_window(uint16_t x_offset, uint16_t y_offset);                            /* 设置OV5640模块预缩放窗口偏移 */
 uint8_t ov5640_set_output_size(uint16_t width, uint16_t height);                                        /* 设置OV5640模块输出图像尺寸 */
+void ov5640_set_vga_rgb565_high_fps(void);
 void OV5640_set_night_mode_VGA();
 uint8_t ov5640_init_qqvga_rgb565_slow(void);
 void ov5640_config_dvp_vga_rgb565_15fps(void);

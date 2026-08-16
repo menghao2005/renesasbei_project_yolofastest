@@ -24,12 +24,23 @@
 #ifndef GT911_H_
 #define GT911_H_
 
-#include "r_mipi_dsi_api.h"
+#include "hal_data.h"
 
 #define BUFFER_LENGTH                                (10)
 #define GTP_READ_COOR_ADDR                           (0x814E)
-#define GT911_BUFFER_STATUS_READY                    (0x80)
+#define ST7123_BUFFER_STATUS_READY                   (0x80)
+#define GT911_BUFFER_STATUS_READY                    ST7123_BUFFER_STATUS_READY
 #define GTP_ADDR_LENGTH                              (2)
+
+/* Keep the original gt911 file name, but this panel uses a Sitronix ST7123 touch controller. */
+#define ST7123_I2C_SLAVE_ADDR                        (0x55U)
+#define ST7123_REG_STATUS                            (0x0001U)
+#define ST7123_REG_REPORT_TABLE                      (0x0010U)
+#define ST7123_MAX_TOUCH_POINTS                      (5U)
+#define ST7123_POINT_STRIDE_BYTES                    (8U)
+#define ST7123_REPORT_HEADER_BYTES                   (4U)
+#define ST7123_PANEL_WIDTH                           (480U)
+#define ST7123_PANEL_HEIGHT                          (800U)
 
 typedef struct st_coord
 {
@@ -37,15 +48,44 @@ typedef struct st_coord
     uint16_t y;
 }coord_t;
 
-typedef __PACKED_STRUCT st_gt911_point_payload
+typedef __PACKED_STRUCT st_st7123_point_payload
 {
     uint8_t track_id;
     uint16_t x;
     uint16_t y;
     uint16_t point_size;
     uint8_t reserved;
-}gt911_point_payload_t;
+}st7123_point_payload_t;
 
-fsp_err_t gt911_get_status(uint8_t* status, coord_t * points, uint32_t num_points);
+typedef st7123_point_payload_t gt911_point_payload_t;
+
+fsp_err_t st7123_get_status(uint8_t* status, coord_t * points, uint32_t num_points);
+fsp_err_t st7123_read_touch_controller_status(uint8_t * status);
+fsp_err_t st7123_read_raw_report(uint8_t * report, uint32_t report_length);
+bool st7123_touch_irq_pending_get_and_clear(void);
+fsp_err_t st7123_touch_irq_init(void);
+void st7123_touch_irq_print_task(void);
+bool st7123_touch_get_latest(coord_t * points, uint32_t num_points, uint8_t * touch_count);
+
+/* Latest valid touch coordinates. Updated by st7123_touch_irq_print_task(), not inside the IRQ ISR. */
+extern coord_t g_st7123_touch_points[ST7123_MAX_TOUCH_POINTS];
+extern volatile uint8_t g_st7123_touch_count;
+extern volatile bool g_st7123_touch_updated;
+extern volatile uint16_t g_st7123_touch_x;
+extern volatile uint16_t g_st7123_touch_y;
+
+/* Compatibility aliases for older code that still uses the temporary gt911/touch names. */
+#define gt911_get_status                              st7123_get_status
+#define gt911_read_touch_controller_status           st7123_read_touch_controller_status
+#define gt911_read_raw_report                        st7123_read_raw_report
+#define gt911_touch_irq_pending_get_and_clear        st7123_touch_irq_pending_get_and_clear
+#define touch_irq_init                               st7123_touch_irq_init
+#define touch_irq_print_task                         st7123_touch_irq_print_task
+#define gt911_touch_get_latest                       st7123_touch_get_latest
+#define g_touch_points                               g_st7123_touch_points
+#define g_touch_count                                g_st7123_touch_count
+#define g_touch_updated                              g_st7123_touch_updated
+#define g_touch_x                                    g_st7123_touch_x
+#define g_touch_y                                    g_st7123_touch_y
 
 #endif /* GT911_H_ */

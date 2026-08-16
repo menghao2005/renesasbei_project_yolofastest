@@ -3,6 +3,10 @@
 #define COMMON_DATA_H_
 #include <stdint.h>
 #include "bsp_api.h"
+#include "rm_ethosu_api.h"
+#include "rm_ethosu.h"
+#include "arm_math.h"
+#include "arm_nnfunctions.h"
 #include "r_icu.h"
 #include "r_external_irq_api.h"
 #include "dave_driver.h"
@@ -13,6 +17,14 @@
 #include "r_ioport.h"
 #include "bsp_pin_cfg.h"
 FSP_HEADER
+#include "ethosu_driver.h"
+extern struct ethosu_driver g_ethosu0;
+extern rm_ethosu_instance_ctrl_t g_rm_ethosu0_ctrl;
+extern const rm_ethosu_cfg_t g_rm_ethosu0_cfg;
+extern const rm_ethosu_instance_t g_rm_ethosu0;
+#ifndef NULL
+void NULL(rm_ethosu_callback_args_t *p_arg);
+#endif
 /** External IRQ on ICU Instance. */
 extern const external_irq_instance_t g_external_irq_VSYNC;
 
@@ -101,7 +113,7 @@ void glcdc_callback(display_callback_args_t *p_args);
 #define DISPLAY_BUFFER_STRIDE_BYTES_INPUT0   (((DISPLAY_HSIZE_INPUT0 * DISPLAY_BITS_PER_PIXEL_INPUT0 + 0x1FF) >> 9) << 6)
 #define DISPLAY_BUFFER_STRIDE_PIXELS_INPUT0  ((DISPLAY_BUFFER_STRIDE_BYTES_INPUT0 * 8) / DISPLAY_BITS_PER_PIXEL_INPUT0)
 #if GLCDC_CFG_LAYER_1_ENABLE
-            extern uint8_t fb_background[2][DISPLAY_BUFFER_STRIDE_BYTES_INPUT0 * DISPLAY_VSIZE_INPUT0];
+            extern uint8_t g_display_sdram[1][DISPLAY_BUFFER_STRIDE_BYTES_INPUT0 * DISPLAY_VSIZE_INPUT0];
             #endif
 
 #define DISPLAY_IN_FORMAT_16BITS_RGB565_1

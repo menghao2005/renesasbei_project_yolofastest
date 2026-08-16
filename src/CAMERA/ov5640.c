@@ -134,8 +134,10 @@ void ov5640_config_dvp_vga_rgb565_15fps(void)
         {0x3035, 0x21},
         {0x3036, 0x46},
         {0x3C07, 0x08},
-        {0x3820, 0x41},
-        {0x3821, 0x07},
+//        {0x3820, 0x41},//摄像头180颠倒
+//        {0x3821, 0x07},
+        {0x3820, 0x46},
+        {0x3821, 0x01},
         {0x3814, 0x31},
         {0x3815, 0x31},
         {0x3800, 0x00},
@@ -179,6 +181,34 @@ void ov5640_config_dvp_vga_rgb565_15fps(void)
         {0x501F, 0x01},
         {0x4740, 0x21},
         {0x3008, 0x02},
+        /*
+         * Final DVP VGA RGB565 30 fps override.
+         * Keep this block near the end so later init entries cannot silently change the timing.
+         * 0x3820/0x3821 use the original working RGB565 orientation instead of the guide's flipped image.
+         */
+        {0x3820, 0x46},
+        {0x3821, 0x01},
+        {0x3814, 0x31},
+        {0x3815, 0x31},
+        {0x3808, 0x02},
+        {0x3809, 0x80},
+        {0x380A, 0x01},
+        {0x380B, 0xE0},
+        {0x380C, 0x07},
+        {0x380D, 0x68},
+        {0x380E, 0x03},
+        {0x380F, 0xD8},
+        {0x3813, 0x06},
+        {0x4300, 0x6F},
+        {0x501F, 0x01},
+        {0x4407, 0x04},
+        {0x460B, 0x35},
+        {0x460C, 0x22},
+        {0x4837, 0x22},
+        {0x3824, 0x02},
+
+        {0x3008, 0x02},
+        {0x4740, 0x21},
     };
 
     for (uint32_t i = 0; i < (sizeof(regs) / sizeof(regs[0])); i++)
@@ -315,19 +345,6 @@ static void ov5640_exit_power_down(void)
 }
 
 /**
- * @brief       OV5640模块硬件复位
- * @param       无
- * @retval      无
- */
-static void ov5640_hw_reset(void)
-{
-	OV5640_RST(0);
-    delay_ms(20);
-    OV5640_RST(1);
-    delay_ms(20);
-}
-
-/**
  * @brief       OV5640模块软件复位
  * @param       无
  * @retval      无
@@ -385,11 +402,6 @@ uint8_t ov5640_init(void)
 {
     uint16_t chip_id;
     
-    /* Initialize GPT module */
-//    R_GPT_Open(&g_timer_camera_xclk_ctrl, &g_timer_camera_xclk_cfg);
-//
-//    /* Start GPT module to provide the 24MHz clock frequency output for the camera clock source */
-//    R_GPT_Start(&g_timer_camera_xclk_ctrl);
 
     ov5640_hw_init();               /* OV5640模块硬件初始化 */
     ov5640_exit_power_down();       /* OV5640模块退出掉电模式 */
@@ -449,99 +461,6 @@ uint8_t ov5640_init_qqvga_rgb565_slow(void)
     g_out_height = OV5640_QQVGA_HEIGHT;
     return OV5640_EOK;
 }
-
-#if 0
-    static const ov5640_reg_delay_t qqvga_regs[] =
-    {
-        /* PLL and clock settings copied from the known-good STM32 GPIO-polling example. */
-        {0x3008, 0x42, 0},
-        {0x3034, 0x1A, 0},
-        {0x3035, 0x21, 0},
-        {0x3036, 0x23, 0},
-        {0x3037, 0x13, 0},
-        {0x3108, 0x01, 0},
-
-        {0x3811, 0x00, 0},
-        {0x3708, 0x66, 0},
-        {0x4001, 0x02, 0},
-        {0x4005, 0x1A, 0},
-        {0x3000, 0x00, 0},
-        {0x3004, 0xFF, 0},
-        {0x300E, 0x58, 0},
-        {0x302E, 0x00, 0},
-
-        /* QQVGA RGB565 /4 subsample timing bundle. */
-        {0x3820, 0x47, 0},
-        {0x3821, 0x07, 0},
-        {0x3813, 0x00, 0},
-        {0x3814, 0x71, 0},
-        {0x3815, 0x35, 0},
-        {0x3800, 0x00, 0},
-        {0x3801, 0x00, 0},
-        {0x3802, 0x00, 0},
-        {0x3803, 0x00, 0},
-        {0x3804, 0x0A, 0},
-        {0x3805, 0x3F, 0},
-        {0x3806, 0x06, 0},
-        {0x3807, 0xA9, 0},
-        {0x4300, 0x61, 0},
-        {0x501F, 0x01, 0},
-        {0x4713, 0x03, 0},
-        {0x460B, 0x37, 0},
-        {0x460C, 0x22, 0},
-        {0x4602, 0x00, 0},
-        {0x4603, 0x80, 0},
-        {0x4604, 0x00, 0},
-        {0x4605, 0x78, 0},
-        {0x4837, 0x06, 0},
-        {0x3824, 0x08, 0},
-        {0x3808, 0x00, 0},
-        {0x3809, 0x80, 0},
-        {0x380A, 0x00, 0},
-        {0x380B, 0xA0, 0},
-        {0x380C, 0x05, 0},
-        {0x380D, 0xDC, 0},
-        {0x380E, 0x01, 0},
-        {0x380F, 0xE0, 0},
-        {0x3618, 0x04, 0},
-        {0x3612, 0x49, 0},
-        {0x3709, 0x52, 0},
-        {0x370C, 0x03, 0},
-        {0x3A02, 0x01, 0},
-        {0x3A03, 0xC0, 0},
-        {0x3A14, 0x01, 0},
-        {0x3A15, 0xC0, 0},
-        {0x4004, 0x02, 0},
-        {0x3002, 0x1C, 0},
-        {0x3006, 0xC3, 0},
-        {0x5001, 0xA3, 0},
-        {0x3503, 0x00, 0},
-        {0x5025, 0x00, 0},
-        {0x3008, 0x02, 0},
-        {0x4740, 0x20, 0},
-        {0x3C00, 0x04, 300},
-    };
-
-    uint8_t err = ov5640_init();
-    if (OV5640_EOK != err)
-    {
-        return err;
-    }
-
-    for (uint32_t i = 0; i < (sizeof(qqvga_regs) / sizeof(qqvga_regs[0])); i++)
-    {
-        ov5640_write_reg(qqvga_regs[i].reg, qqvga_regs[i].dat);
-        if (qqvga_regs[i].delay > 0U)
-        {
-            delay_ms(qqvga_regs[i].delay);
-        }
-    }
-
-    g_out_width = OV5640_QQVGA_WIDTH;
-    g_out_height = OV5640_QQVGA_HEIGHT;
-    return OV5640_EOK;
-}
-#endif
 
 uint8_t ov5640_auto_focus_init(void)
 {
@@ -1874,6 +1793,17 @@ uint8_t ov5640_set_output_size(uint16_t width, uint16_t height)
 
 
     return OV5640_EOK;
+}
+
+void ov5640_set_vga_rgb565_high_fps(void)
+{
+    /* Shorter frame period to favor sensor fps over exposure headroom. */
+    ov5640_write_reg(0x380E, 0x01);
+    ov5640_write_reg(0x380F, 0xEC);
+    ov5640_write_reg(0x3A02, 0x05);
+    ov5640_write_reg(0x3A03, 0xC4);
+    ov5640_write_reg(0x3A14, 0x05);
+    ov5640_write_reg(0x3A15, 0xC4);
 }
 
 void OV5640_set_night_mode_VGA(){

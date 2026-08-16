@@ -16,13 +16,14 @@
 #define BYTES_PER_PIXEL                              (2)
 #define COLOR_BAND_COUNT                             (8)
 
-extern uint8_t * gp_single_buffer;
-extern uint8_t * gp_double_buffer;
 extern uint8_t * gp_frame_buffer;
 extern uint16_t g_hz_size, g_vr_size;
 extern uint32_t g_buffer_size, g_hstride;
 
 void graphics_init(void);
 void graphics_draw_frame(const void * pSrc, void * pDst, int PitchSrc, int WidthSrc, int HeightSrc);
+void graphics_blit_scale(const void * pSrc, int SrcWidth, int SrcHeight,
+                          void * pDst, int DstWidth, int DstHeight,
+                          int DstStride);
 
 #endif /* GRAPHICS_GRAPHICS_H_ */

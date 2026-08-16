@@ -24,9 +24,10 @@
             [17] = mipi_dsi_ferr_isr, /* MIPIDSI FERR (DSI fatal error interrupt) */
             [18] = mipi_dsi_ppi_isr, /* MIPIDSI PPI (DSI D-PHY PPI interrupt) */
             [19] = drw_int_isr, /* DRW INT (DRW interrupt) */
-            [20] = r_icu_isr, /* ICU IRQ6 (External pin interrupt 6) */
-            [21] = gpt_counter_overflow_isr, /* GPT0 COUNTER OVERFLOW (Overflow) */
-            [22] = r_icu_isr, /* ICU IRQ8 (External pin interrupt 8) */
+            [20] = r_icu_isr, /* ICU IRQ20 (External pin interrupt 20) */
+            [21] = r_icu_isr, /* ICU IRQ8 (External pin interrupt 8) */
+            [22] = rm_ethosu_isr, /* NPU IRQ (NPU IRQ) */
+            [23] = gpt_counter_overflow_isr, /* GPT0 COUNTER OVERFLOW (Overflow) */
         };
         #if BSP_FEATURE_ICU_HAS_IELSR
         const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_NUM_ENTRIES] =
@@ -51,9 +52,10 @@
             [17] = BSP_PRV_VECT_ENUM(EVENT_MIPIDSI_FERR,GROUP1), /* MIPIDSI FERR (DSI fatal error interrupt) */
             [18] = BSP_PRV_VECT_ENUM(EVENT_MIPIDSI_PPI,GROUP2), /* MIPIDSI PPI (DSI D-PHY PPI interrupt) */
             [19] = BSP_PRV_VECT_ENUM(EVENT_DRW_INT,GROUP3), /* DRW INT (DRW interrupt) */
-            [20] = BSP_PRV_VECT_ENUM(EVENT_ICU_IRQ6,GROUP4), /* ICU IRQ6 (External pin interrupt 6) */
-            [21] = BSP_PRV_VECT_ENUM(EVENT_GPT0_COUNTER_OVERFLOW,GROUP5), /* GPT0 COUNTER OVERFLOW (Overflow) */
-            [22] = BSP_PRV_VECT_ENUM(EVENT_ICU_IRQ8,GROUP6), /* ICU IRQ8 (External pin interrupt 8) */
+            [20] = BSP_PRV_VECT_ENUM(EVENT_ICU_IRQ20,GROUP4), /* ICU IRQ20 (External pin interrupt 20) */
+            [21] = BSP_PRV_VECT_ENUM(EVENT_ICU_IRQ8,GROUP5), /* ICU IRQ8 (External pin interrupt 8) */
+            [22] = BSP_PRV_VECT_ENUM(EVENT_NPU_IRQ,GROUP6), /* NPU IRQ (NPU IRQ) */
+            [23] = BSP_PRV_VECT_ENUM(EVENT_GPT0_COUNTER_OVERFLOW,GROUP7), /* GPT0 COUNTER OVERFLOW (Overflow) */
         };
         #endif
         #endif

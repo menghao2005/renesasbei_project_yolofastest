@@ -31,8 +31,6 @@ uint16_t g_hz_size, g_vr_size;
 
 /* Variables used for buffer usage */
 uint32_t g_buffer_size, g_hstride;
-uint8_t * gp_single_buffer = NULL;
-uint8_t * gp_double_buffer = NULL;
 uint8_t * gp_frame_buffer = NULL;
 
 void graphics_init(void)
@@ -40,17 +38,16 @@ void graphics_init(void)
     /* Get LCDC configuration */
     g_hz_size = (g_display_cfg.input[0].hsize);// 显示屏水平分辨率
     g_vr_size = (g_display_cfg.input[0].vsize);// 显示屏垂直分辨率
-    g_hstride = (g_display_cfg.input[0].hstride);// 行跨度（每行字节数/像素数，考虑内存对齐）
+    g_hstride = (g_display_cfg.input[0].hstride);// 行跨度（每行字节数，考虑内存对齐）
 
     /* Initialize buffer pointers */
     // 计算单帧缓冲区总大小：分辨率 × 每个像素字节数（BYTES_PER_PIXEL，如RGB565为2字节）
     g_buffer_size = (uint32_t) (g_hstride * g_vr_size * BYTES_PER_PIXEL);
     // 单缓冲区首地址：指向LCDC配置的帧缓冲物理基地址（如DDR/TCM内存）
-    gp_single_buffer = (uint8_t*) g_display_cfg.input[0].p_base;
+    gp_frame_buffer = (uint8_t *) g_display_cfg.input[0].p_base;
 
     /* Double buffer for drawing color bands with good quality */
     // 双缓冲区首地址：单缓冲区末尾 + 单帧大小（实现双缓冲，避免渲染时画面撕裂）
-    gp_double_buffer = gp_single_buffer + g_buffer_size;
 
     // Initialize D/AVE 2D driver
     // 打开D/AVE 2D设备（0为设备编号，瑞萨MCU通常只有1个2D加速器）
@@ -125,6 +122,36 @@ void graphics_draw_frame(const void * pSrc, void * pDst, int PitchSrc, int Width
     // 5. 执行渲染指令：将渲染缓冲区的操作提交到硬件执行
     d2_executerenderbuffer(*_d2_handle_user, renderbuffer, 0);
     // 6. 刷新帧缓冲区：确保数据写入物理内存（SDRAM），供屏显控制器读取
+    d2_flushframe(*_d2_handle_user);
+}
+
+/*******************************************************************************************************************//**
+ * Dave2D 硬件缩放 Blit: SrcWidth×SrcHeight → DstWidth×DstHeight, 写入 pDst.
+ * pSrc 在 SRAM, pDst 在 SDRAM. Dave2D 使用独立总线主接口完成缩放+拷贝.
+ **********************************************************************************************************************/
+void graphics_blit_scale(const void * pSrc, int SrcWidth, int SrcHeight,
+                          void * pDst, int DstWidth, int DstHeight,
+                          int DstStride)
+{
+    /* 设置目标帧缓冲 (SDRAM) */
+    d2_framebuffer(*_d2_handle_user, pDst, (d2_s32)DstStride, (d2_s32)DstWidth, (d2_s32)DstHeight, d2_mode_rgb565);
+
+    /* 选择渲染缓冲区 */
+    d2_selectrenderbuffer(*_d2_handle_user, renderbuffer);
+
+    /* 设置源 (SRAM) */
+    d2_setblitsrc(*_d2_handle_user, (void *)pSrc, (d2_s32)SrcWidth, (d2_s32)SrcWidth, (d2_s32)SrcHeight, d2_mode_rgb565);
+
+    /* 硬件缩放 Blit: 源尺寸 → 目标尺寸 (16.4 定点数) */
+    d2_blitcopy(*_d2_handle_user,
+                (d2_s32)SrcWidth, (d2_s32)SrcHeight,
+                0, 0,
+                (d2_width)((uint32_t)DstWidth  << 4),
+                (d2_width)((uint32_t)DstHeight << 4),
+                0, 0, 0);
+
+    /* 执行并刷新 */
+    d2_executerenderbuffer(*_d2_handle_user, renderbuffer, 0);
     d2_flushframe(*_d2_handle_user);
 }
 

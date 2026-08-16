@@ -6,7 +6,7 @@
         #endif
 /* Number of interrupts allocated */
 #ifndef VECTOR_DATA_IRQ_COUNT
-#define VECTOR_DATA_IRQ_COUNT    (23)
+#define VECTOR_DATA_IRQ_COUNT    (24)
 #endif
 /* ISR prototypes */
 void sci_b_uart_rxi_isr(void);
@@ -30,6 +30,7 @@ void mipi_dsi_ferr_isr(void);
 void mipi_dsi_ppi_isr(void);
 void drw_int_isr(void);
 void r_icu_isr(void);
+void rm_ethosu_isr(void);
 void gpt_counter_overflow_isr(void);
 
 /* Vector table allocations */
@@ -73,14 +74,16 @@ void gpt_counter_overflow_isr(void);
 #define MIPIDSI_PPI_IRQn          ((IRQn_Type) 18) /* MIPIDSI PPI (DSI D-PHY PPI interrupt) */
 #define VECTOR_NUMBER_DRW_INT ((IRQn_Type) 19) /* DRW INT (DRW interrupt) */
 #define DRW_INT_IRQn          ((IRQn_Type) 19) /* DRW INT (DRW interrupt) */
-#define VECTOR_NUMBER_ICU_IRQ6 ((IRQn_Type) 20) /* ICU IRQ6 (External pin interrupt 6) */
-#define ICU_IRQ6_IRQn          ((IRQn_Type) 20) /* ICU IRQ6 (External pin interrupt 6) */
-#define VECTOR_NUMBER_GPT0_COUNTER_OVERFLOW ((IRQn_Type) 21) /* GPT0 COUNTER OVERFLOW (Overflow) */
-#define GPT0_COUNTER_OVERFLOW_IRQn          ((IRQn_Type) 21) /* GPT0 COUNTER OVERFLOW (Overflow) */
-#define VECTOR_NUMBER_ICU_IRQ8 ((IRQn_Type) 22) /* ICU IRQ8 (External pin interrupt 8) */
-#define ICU_IRQ8_IRQn          ((IRQn_Type) 22) /* ICU IRQ8 (External pin interrupt 8) */
+#define VECTOR_NUMBER_ICU_IRQ20 ((IRQn_Type) 20) /* ICU IRQ20 (External pin interrupt 20) */
+#define ICU_IRQ20_IRQn          ((IRQn_Type) 20) /* ICU IRQ20 (External pin interrupt 20) */
+#define VECTOR_NUMBER_ICU_IRQ8 ((IRQn_Type) 21) /* ICU IRQ8 (External pin interrupt 8) */
+#define ICU_IRQ8_IRQn          ((IRQn_Type) 21) /* ICU IRQ8 (External pin interrupt 8) */
+#define VECTOR_NUMBER_NPU_IRQ ((IRQn_Type) 22) /* NPU IRQ (NPU IRQ) */
+#define NPU_IRQ_IRQn          ((IRQn_Type) 22) /* NPU IRQ (NPU IRQ) */
+#define VECTOR_NUMBER_GPT0_COUNTER_OVERFLOW ((IRQn_Type) 23) /* GPT0 COUNTER OVERFLOW (Overflow) */
+#define GPT0_COUNTER_OVERFLOW_IRQn          ((IRQn_Type) 23) /* GPT0 COUNTER OVERFLOW (Overflow) */
 /* The number of entries required for the ICU vector table. */
-#define BSP_ICU_VECTOR_NUM_ENTRIES (23)
+#define BSP_ICU_VECTOR_NUM_ENTRIES (24)
 
 #ifdef __cplusplus
         }

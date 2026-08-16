@@ -167,6 +167,13 @@ static void ceu_reopen_after_timeout(void)
         printf("CEU recover: open=%d\r\n", open_err);
     }
 }
+
+/* 断流自愈：主循环检测到长时间无帧时调用（换同步配置 + 重开 CEU） */
+void ceu_recover(void)
+{
+    ceu_advance_sync_try();
+    ceu_reopen_after_timeout();
+}
 /*******************************************************************************************************************//**
  *  @brief      ceu vga callback function
  *  @param[in]  p_args
@@ -226,10 +233,10 @@ void g_ceu_vga_callback (capture_callback_args_t * p_args)
  **********************************************************************************************************************/
 fsp_err_t ceu_init(uint8_t * const p_buffer, uint32_t width, uint32_t height)
 {
-    fsp_err_t   err;
-
     /* Initialize CEU module with the configuration specified by CEU instance pointer */
     R_CEU_Open(&g_ceu_vga_ctrl, &g_ceu_vga_cfg);
+    g_ceu_sync_try_index = 0U;
+    ceu_apply_sync_try();
 
 
     /* Clean image buffer */
@@ -238,53 +245,20 @@ fsp_err_t ceu_init(uint8_t * const p_buffer, uint32_t width, uint32_t height)
     return FSP_SUCCESS;
 }
 
-/*******************************************************************************************************************//**
- *  @brief      ceu operation function
- *  @param[in]  p_instance : ceu instance pointer
- *  @param[in]  p_buffer : image buffer pointer
- *  @param[in]  width : width of image
- *  @param[in]  height : height of image
- *  @retval     FSP_SUCCESS   Upon successful operation
- *  @retval     Any Other Error code apart from FSP_SUCCES
- **********************************************************************************************************************/
-//fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t width, uint32_t height)
-fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t *used_ms)
+static fsp_err_t ceu_wait_for_capture_complete(uint32_t *used_ms, uint32_t timeout_ms)
 {
-    fsp_err_t err = FSP_SUCCESS;
-    uint32_t timeout_ms = 2000U;
-    uint32_t callback_count_before = g_ceu_callback_count;
+    uint32_t wait_budget_ms = timeout_ms;
 
-    /* Print capture operation start */
-//    APP_PRINT("\r\nImage Capturing Operation started\r\n");
-
-    /* Start capture image and store it in the buffer specified by image buffer pointer */
-    g_capture_ready = false;
-    g_ceu_last_event = CEU_EVENT_NONE;
-//    ceu_apply_sync_try();
-
-    err = R_CEU_CaptureStart(&g_ceu_vga_ctrl, p_buffer);
-    if (FSP_SUCCESS != err)
-    {
-        printf(" ** R_CEU_CaptureStart API FAILED: %d ** \r\n", err);
-        return err;
-    }
-
-    /*  Wait until CEU callback triggers */
-    
-//    int64_t ms = get_system_ms();
     while (true != g_capture_ready)
     {
         R_BSP_SoftwareDelay(1U, BSP_DELAY_UNITS_MILLISECONDS);
-        timeout_ms--;
-        if (RESET_VALUE == timeout_ms)
+        if (0U == wait_budget_ms)
         {
             capture_status_t status = {0};
             fsp_err_t status_err = R_CEU_StatusGet(&g_ceu_vga_ctrl, &status);
 
             printf(" ** CEU Callback event not received ** \r\n");
-            printf("CEU callbacks: before=%lu now=%lu frame_end=%lu errors=%lu\r\n",
-                   (unsigned long) callback_count_before,
-                   (unsigned long) g_ceu_callback_count,
+            printf("CEU callbacks: frame_end=%lu errors=%lu\r\n",
                    (unsigned long) g_ceu_frame_end_count,
                    (unsigned long) g_ceu_error_count);
             printf("CEU zero events: %lu\r\n", (unsigned long) g_ceu_zero_event_count);
@@ -309,13 +283,16 @@ fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t *used_ms)
                    (unsigned long) R_CEU->CDWDR,
                    (unsigned long) R_CEU->CDSSR);
             ceu_print_event(g_ceu_last_event);
+            ceu_advance_sync_try();
             ceu_reopen_after_timeout();
             if (NULL != used_ms)
             {
-                *used_ms = 2000U;
+                *used_ms = timeout_ms;
             }
             return FSP_ERR_TIMEOUT;
         }
+
+        wait_budget_ms--;
     }
 
     if (0U == (g_ceu_last_event & CEU_EVENT_FRAME_END))
@@ -329,55 +306,77 @@ fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t *used_ms)
                (unsigned long) g_ceu_frame_end_count,
                (unsigned long) g_ceu_error_count);
         g_capture_ready = false;
+        ceu_advance_sync_try();
         if (NULL != used_ms)
         {
-            *used_ms = 2000U - timeout_ms;
+            *used_ms = timeout_ms - wait_budget_ms;
         }
         return FSP_ERR_ABORTED;
     }
+
     if (NULL != used_ms)
     {
-        *used_ms = 2000U - timeout_ms;
+        *used_ms = timeout_ms - wait_budget_ms;
     }
 
-    /* Print success notice */
-//    APP_PRINT("\r\nCEU Capture Successful !\r\n");
-
-    /* Reset capture flag */
     g_capture_ready = false;
     return FSP_SUCCESS;
 }
 
-fsp_err_t ceu_capture_one_frame(uint8_t * const p_capture_buffer,
-                                uint32_t width,
-                                uint32_t height,
-                                uint32_t * const p_used_ms)
+fsp_err_t ceu_capture_start(uint8_t * const p_buffer)
+{
+    g_capture_ready = false;
+    g_ceu_last_event = CEU_EVENT_NONE;
+    /* 注意：不在此处轮换同步极性（ceu_apply_sync_try）——每帧换一次会造成 CEU
+     * 同步配置抖动（HD/VD 极性不匹配 → 错误帧/丢帧，画面卡顿花屏）。
+     * 极性仅在 ceu_init（启动）与 ceu_recover（断流自愈）时轮换。 */
+
+    return R_CEU_CaptureStart(&g_ceu_vga_ctrl, p_buffer);
+}
+
+fsp_err_t ceu_capture_wait(uint32_t *used_ms, uint32_t timeout_ms)
+{
+    return ceu_wait_for_capture_complete(used_ms, timeout_ms);
+}
+
+/*******************************************************************************************************************//**
+ *  @brief      ceu operation function
+ *  @param[in]  p_instance : ceu instance pointer
+ *  @param[in]  p_buffer : image buffer pointer
+ *  @param[in]  width : width of image
+ *  @param[in]  height : height of image
+ *  @retval     FSP_SUCCESS   Upon successful operation
+ *  @retval     Any Other Error code apart from FSP_SUCCES
+ **********************************************************************************************************************/
+//fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t width, uint32_t height)
+fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t *used_ms)
 {
     fsp_err_t err = FSP_SUCCESS;
+    uint32_t callback_count_before = g_ceu_callback_count;
 
-    gp_frame_buffer = (gp_frame_buffer == gp_single_buffer) ? gp_double_buffer : gp_single_buffer;
+    /* Print capture operation start */
+//    APP_PRINT("\r\nImage Capturing Operation started\r\n");
 
-    err = ceu_operation(p_capture_buffer, p_used_ms);
+    /* Start capture image and store it in the buffer specified by image buffer pointer */
+//    ceu_apply_sync_try();
+
+    err = ceu_capture_start(p_buffer);
     if (FSP_SUCCESS != err)
     {
+        printf(" ** R_CEU_CaptureStart API FAILED: %d ** \r\n", err);
         return err;
     }
-
-    graphics_draw_frame(p_capture_buffer, (uint8_t *) gp_frame_buffer, (int) width, (int) width, (int) height);
-
-    err = R_GLCDC_BufferChange(&g_display_ctrl, (uint8_t *) gp_frame_buffer, DISPLAY_FRAME_LAYER_1);
+    err = ceu_capture_wait(used_ms, 2000U);
     if (FSP_SUCCESS != err)
     {
-        return err;
+        printf("CEU callbacks: before=%lu now=%lu frame_end=%lu errors=%lu\r\n",
+               (unsigned long) callback_count_before,
+               (unsigned long) g_ceu_callback_count,
+               (unsigned long) g_ceu_frame_end_count,
+               (unsigned long) g_ceu_error_count);
     }
 
-    g_vsync_flag = RESET_FLAG;
-    while (!g_vsync_flag)
-    {
-        ;
-    }
-
-    return FSP_SUCCESS;
+    return err;
 }
 
 // YUV422 non-swapped data format : Y0 U0 Y1 V2 Y2 U2 Y3 V4 Y4 U4 Y5 V6 Y6 U6 Y7鈥�
