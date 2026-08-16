@@ -1,4 +1,4 @@
-﻿/*
+/*
  * robot_arm.c
  *
  *  Created on: 2026�?�?7�?
@@ -66,6 +66,7 @@ static uint32_t robot_arm_period_counts = 0U;
 
 /* 非阻塞插值状�?*/
 static volatile bool robot_arm_moving = false;
+static volatile bool robot_arm_paused  = false;
 static uint16_t robot_arm_start_us[ROBOT_ARM_SERVO_NUM];
 static uint16_t robot_arm_target_us[ROBOT_ARM_SERVO_NUM];
 static uint16_t robot_arm_steps        = 1U;
@@ -124,6 +125,10 @@ static const robot_arm_tree_grab_config_t s_tree_grab_default_config =
     .align_step_us = 5U,
     .align_move_ms = 120U,
     .grab_area_percent = 8.0f,
+    .close_base_delta_us = 0,
+    .close_upper_delta_us = 0,
+    .close_forearm_delta_us = 0,
+    .lower_grab_mode = false,
 };
 
 static robot_arm_tree_grab_state_t robot_arm_tree_grab_state = ROBOT_ARM_TREE_GRAB_IDLE;
@@ -742,6 +747,25 @@ static void RobotArm_TreeGrabMovePose(const robot_arm_pose_t * p_pose)
     pose = RobotArm_TreeGrabPoseWithForwardWrist(p_pose);
     RobotArm_MoveToPose(&pose);
 }
+
+static void RobotArm_TreeGrabMovePoseWithDownWrist(const robot_arm_pose_t * p_pose)
+{
+    uint16_t wrist;
+
+    if (NULL == p_pose)
+    {
+        return;
+    }
+
+    wrist = RobotArm_CalcWristDownUs(p_pose->upper_arm, p_pose->forearm);
+    RobotArm_MoveToTime(p_pose->base,
+                        p_pose->upper_arm,
+                        p_pose->forearm,
+                        wrist,
+                        p_pose->gripper,
+                        RobotArm_MoveTimeOrDefault(p_pose->move_ms));
+}
+
 static uint16_t RobotArm_AddDeltaClamped(uint16_t current_us, int32_t delta_us)
 {
     int32_t next_us = (int32_t) current_us + delta_us;
@@ -812,12 +836,24 @@ static void RobotArm_TreeGrabStepTowardApproach(uint16_t step_us)
 {
     robot_arm_pose_t target = RobotArm_TreeGrabApplyCorrection(&robot_arm_tree_grab_config.approach_pose);
 
-    robot_arm_tree_grab_current_pose.upper_arm =
-        RobotArm_TreeGrabStepPastApproach(robot_arm_tree_grab_current_pose.upper_arm,
-                                          robot_arm_tree_grab_config.fixed_pose.upper_arm,
-                                          robot_arm_tree_grab_config.approach_pose.upper_arm,
-                                          target.upper_arm,
-                                          step_us);
+    if (robot_arm_tree_grab_config.lower_grab_mode)
+    {
+        robot_arm_tree_grab_current_pose.forearm =
+            RobotArm_TreeGrabStepPastApproach(robot_arm_tree_grab_current_pose.forearm,
+                                              robot_arm_tree_grab_config.fixed_pose.forearm,
+                                              robot_arm_tree_grab_config.approach_pose.forearm,
+                                              target.forearm,
+                                              step_us);
+    }
+    else
+    {
+        robot_arm_tree_grab_current_pose.upper_arm =
+            RobotArm_TreeGrabStepPastApproach(robot_arm_tree_grab_current_pose.upper_arm,
+                                              robot_arm_tree_grab_config.fixed_pose.upper_arm,
+                                              robot_arm_tree_grab_config.approach_pose.upper_arm,
+                                              target.upper_arm,
+                                              step_us);
+    }
 }
 static void RobotArm_TreeGrabCaptureCurrentAsBase(void)
 {
@@ -848,23 +884,16 @@ static robot_arm_pose_t RobotArm_TreeGrabApplyCorrection(const robot_arm_pose_t 
     return corrected;
 }
 
-static void RobotArm_TreeGrabMoveCorrected(const robot_arm_pose_t * p_pose)
-{
-    robot_arm_pose_t corrected;
-
-    if (NULL == p_pose)
-    {
-        return;
-    }
-
-    corrected = RobotArm_TreeGrabApplyCorrection(p_pose);
-    RobotArm_TreeGrabMovePose(&corrected);
-}
-
 static void RobotArm_TreeGrabMoveCloseFromCurrent(void)
 {
     robot_arm_pose_t close_pose = robot_arm_tree_grab_current_pose;
 
+    close_pose.base = RobotArm_AddDeltaClamped(close_pose.base,
+                                               robot_arm_tree_grab_config.close_base_delta_us);
+    close_pose.upper_arm = RobotArm_AddDeltaClamped(close_pose.upper_arm,
+                                                    robot_arm_tree_grab_config.close_upper_delta_us);
+    close_pose.forearm = RobotArm_AddDeltaClamped(close_pose.forearm,
+                                                  robot_arm_tree_grab_config.close_forearm_delta_us);
     close_pose.gripper = robot_arm_tree_grab_config.close_pose.gripper;
     close_pose.move_ms = RobotArm_MoveTimeOrDefault(robot_arm_tree_grab_config.close_pose.move_ms);
 
@@ -943,7 +972,7 @@ void RobotArm_TreeGrabService(const ai_center_offset_t * p_offset, float target_
     bool x_aligned;
     bool y_aligned;
 
-    uint16_t y_forearm_step_us;
+    uint16_t y_step_us;
     if (!robot_arm_tree_grab_active)
     {
         return;
@@ -971,10 +1000,10 @@ void RobotArm_TreeGrabService(const ai_center_offset_t * p_offset, float target_
 
             deadband = robot_arm_tree_grab_config.align_deadband_px;
             step_us = robot_arm_tree_grab_config.align_step_us;
-            y_forearm_step_us = step_us;
-            if (0U == y_forearm_step_us)
+            y_step_us = step_us;
+            if (0U == y_step_us)
             {
-                y_forearm_step_us = 1U;
+                y_step_us = 1U;
             }
 
             x_aligned = (RobotArm_AbsFloat(p_offset->dx) <= deadband);
@@ -1034,25 +1063,53 @@ void RobotArm_TreeGrabService(const ai_center_offset_t * p_offset, float target_
 
             if (p_offset->dy > deadband)
             {
-                robot_arm_tree_grab_align_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_align_pose.forearm,
-                                                                               (int16_t) y_forearm_step_us,
-                                                                               ROBOT_ARM_SERVO_MIN_US,
-                                                                               ROBOT_ARM_SERVO_MAX_US);
-                robot_arm_tree_grab_current_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_current_pose.forearm,
-                                                                                 (int16_t) y_forearm_step_us,
-                                                                                 ROBOT_ARM_SERVO_MIN_US,
-                                                                                 ROBOT_ARM_SERVO_MAX_US);
+                if (robot_arm_tree_grab_config.lower_grab_mode)
+                {
+                    robot_arm_tree_grab_align_pose.upper_arm = RobotArm_AddClamped(robot_arm_tree_grab_align_pose.upper_arm,
+                                                                                     (int16_t) (-(int32_t) y_step_us),
+                                                                                     ROBOT_ARM_SERVO_MIN_US,
+                                                                                     ROBOT_ARM_SERVO_MAX_US);
+                    robot_arm_tree_grab_current_pose.upper_arm = RobotArm_AddClamped(robot_arm_tree_grab_current_pose.upper_arm,
+                                                                                       (int16_t) (-(int32_t) y_step_us),
+                                                                                       ROBOT_ARM_SERVO_MIN_US,
+                                                                                       ROBOT_ARM_SERVO_MAX_US);
+                }
+                else
+                {
+                    robot_arm_tree_grab_align_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_align_pose.forearm,
+                                                                                   (int16_t) y_step_us,
+                                                                                   ROBOT_ARM_SERVO_MIN_US,
+                                                                                   ROBOT_ARM_SERVO_MAX_US);
+                    robot_arm_tree_grab_current_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_current_pose.forearm,
+                                                                                     (int16_t) y_step_us,
+                                                                                     ROBOT_ARM_SERVO_MIN_US,
+                                                                                     ROBOT_ARM_SERVO_MAX_US);
+                }
             }
             else if (p_offset->dy < -deadband)
             {
-                robot_arm_tree_grab_align_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_align_pose.forearm,
-                                                                               (int16_t) (-(int32_t) y_forearm_step_us),
-                                                                               ROBOT_ARM_SERVO_MIN_US,
-                                                                               ROBOT_ARM_SERVO_MAX_US);
-                robot_arm_tree_grab_current_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_current_pose.forearm,
-                                                                                 (int16_t) (-(int32_t) y_forearm_step_us),
-                                                                                 ROBOT_ARM_SERVO_MIN_US,
-                                                                                 ROBOT_ARM_SERVO_MAX_US);
+                if (robot_arm_tree_grab_config.lower_grab_mode)
+                {
+                    robot_arm_tree_grab_align_pose.upper_arm = RobotArm_AddClamped(robot_arm_tree_grab_align_pose.upper_arm,
+                                                                                     (int16_t) y_step_us,
+                                                                                     ROBOT_ARM_SERVO_MIN_US,
+                                                                                     ROBOT_ARM_SERVO_MAX_US);
+                    robot_arm_tree_grab_current_pose.upper_arm = RobotArm_AddClamped(robot_arm_tree_grab_current_pose.upper_arm,
+                                                                                       (int16_t) y_step_us,
+                                                                                       ROBOT_ARM_SERVO_MIN_US,
+                                                                                       ROBOT_ARM_SERVO_MAX_US);
+                }
+                else
+                {
+                    robot_arm_tree_grab_align_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_align_pose.forearm,
+                                                                                   (int16_t) (-(int32_t) y_step_us),
+                                                                                   ROBOT_ARM_SERVO_MIN_US,
+                                                                                   ROBOT_ARM_SERVO_MAX_US);
+                    robot_arm_tree_grab_current_pose.forearm = RobotArm_AddClamped(robot_arm_tree_grab_current_pose.forearm,
+                                                                                     (int16_t) (-(int32_t) y_step_us),
+                                                                                     ROBOT_ARM_SERVO_MIN_US,
+                                                                                     ROBOT_ARM_SERVO_MAX_US);
+                }
             }
 
             robot_arm_tree_grab_current_pose.move_ms = robot_arm_tree_grab_config.align_move_ms;
@@ -1060,18 +1117,26 @@ void RobotArm_TreeGrabService(const ai_center_offset_t * p_offset, float target_
             return;
 
         case ROBOT_ARM_TREE_GRAB_CLOSE:
+        {
+            robot_arm_pose_t retract_pose = robot_arm_tree_grab_config.retract_pose;
+
+            retract_pose.base = robot_arm_tree_grab_current_pose.base;
+            robot_arm_tree_grab_current_pose = retract_pose;
             robot_arm_tree_grab_state = ROBOT_ARM_TREE_GRAB_RETRACT;
-            RobotArm_TreeGrabMoveCorrected(&robot_arm_tree_grab_config.retract_pose);
+            RobotArm_TreeGrabMovePoseWithDownWrist(&retract_pose);
             return;
+        }
 
         case ROBOT_ARM_TREE_GRAB_RETRACT:
             robot_arm_tree_grab_state = ROBOT_ARM_TREE_GRAB_RETURN;
-            RobotArm_TreeGrabMovePose(&robot_arm_tree_grab_config.return_pose);
+            robot_arm_tree_grab_current_pose = robot_arm_tree_grab_config.return_pose;
+            RobotArm_TreeGrabMovePoseWithDownWrist(&robot_arm_tree_grab_config.return_pose);
             return;
 
         case ROBOT_ARM_TREE_GRAB_RETURN:
             robot_arm_tree_grab_state = ROBOT_ARM_TREE_GRAB_RELEASE;
-            RobotArm_TreeGrabMovePose(&robot_arm_tree_grab_config.release_pose);
+            robot_arm_tree_grab_current_pose = robot_arm_tree_grab_config.release_pose;
+            RobotArm_TreeGrabMovePoseWithDownWrist(&robot_arm_tree_grab_config.release_pose);
             return;
 
         case ROBOT_ARM_TREE_GRAB_RELEASE:
@@ -1084,9 +1149,6 @@ void RobotArm_TreeGrabService(const ai_center_offset_t * p_offset, float target_
             return;
     }
 }
-/* Screen lock(switch) freeze flag: when set, RobotArm_Update stops interpolating. */
-static volatile bool robot_arm_paused = false;
-
 void RobotArm_SetPaused(bool paused)
 {
     if (paused == robot_arm_paused)
@@ -1098,8 +1160,7 @@ void RobotArm_SetPaused(bool paused)
 
     if (!paused)
     {
-        /* On resume, discard accumulated cycle counts so the arm does not
-         * jump straight to the target pose. */
+        /* 恢复时丢弃累积周期计数，防止机械臂瞬间跳到目标姿态 */
         robot_arm_last_cycles = RobotArm_CycleCount();
     }
 }

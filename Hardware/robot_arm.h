@@ -1,4 +1,4 @@
-﻿/*
+/*
  * robot_arm.h
  *
  *  Created on: 2026�?�?7�?
@@ -24,6 +24,9 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include "ai_center_offset.h"
+
+/* 暂停/恢复机械臂步进（POWER 关闭时调用，防复位急转） */
+void RobotArm_SetPaused(bool paused);
 
 /* 舵机脉冲宽度范围(us) */
 #define ROBOT_ARM_SERVO_MIN_US      500U
@@ -91,6 +94,10 @@ typedef struct st_robot_arm_tree_grab_config
     uint16_t         align_step_us;
     uint16_t         align_move_ms;
     float            grab_area_percent;
+    int16_t          close_base_delta_us;
+    int16_t          close_upper_delta_us;
+    int16_t          close_forearm_delta_us;
+    bool             lower_grab_mode;
 } robot_arm_tree_grab_config_t;
 
 /* Tree-fruit grab task. RobotArm_Grab* remains the ground-object task. */
@@ -99,10 +106,6 @@ void RobotArm_TreeGrabStartDefault(void);
 void RobotArm_TreeGrabService(const ai_center_offset_t * p_offset, float target_area_percent);
 bool RobotArm_TreeGrabIsBusy(void);
 void RobotArm_Update(void);
-
-/* 冻结/恢复机械臂：冻结时插值暂停（舵机停在当前位置），恢复时丢弃暂停期间的
- * 积压时间继续运动，不会跳变。由屏幕锁定(开关)功能调用。 */
-void RobotArm_SetPaused(bool paused);
 
 #ifdef __cplusplus
 }
