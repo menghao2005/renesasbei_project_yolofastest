@@ -306,20 +306,20 @@ void hal_entry(void)
                * 带4: y544-592 跳过 START(x288-448) | 带5: y592-640 */
               const int fb_w = 480, fb_h = 800;
               uint8_t * fb = gp_frame_buffer;
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 0, 640, 352,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 28, 480, 448);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 352, 475, 40,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 476, 356, 52);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 624, 352, 16, 40,
-                  fb, (int)g_hstride, fb_w, fb_h, 468, 476, 12, 52);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 392, 640, 10,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 528, 480, 12);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 402, 400, 43,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 540, 300, 56);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 624, 402, 16, 43,
-                  fb, (int)g_hstride, fb_w, fb_h, 468, 540, 12, 56);
-              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 445, 640, 35,
-                  fb, (int)g_hstride, fb_w, fb_h, 0, 596, 480, 44);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 0, 640, 357,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 28, 480, 456);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 357, 480, 31,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 484, 360, 40);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 619, 357, 21, 31,
+                  fb, (int)g_hstride, fb_w, fb_h, 464, 484, 16, 40);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 388, 640, 16,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 524, 480, 20);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 404, 405, 38,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 544, 304, 48);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 619, 404, 21, 38,
+                  fb, (int)g_hstride, fb_w, fb_h, 464, 544, 16, 48);
+              graphics_blit_scale_region(p_display_frame, 640, 480, 0, 442, 640, 38,
+                  fb, (int)g_hstride, fb_w, fb_h, 0, 592, 480, 48);
           }
           else
           {
