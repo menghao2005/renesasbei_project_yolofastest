@@ -30,6 +30,7 @@
 #include "font_8x8.h"
 #include "cn_font.h"
 #include "bottom_logo_data.h"
+#include "renesas_logo_data.h"
 #include "gt911.h"
 #include "robot_arm.h"
 #include "harvest_task.h"
@@ -597,29 +598,51 @@ static void ui_draw_joy_area(void)
 /* REMOTE 电赛 logo（NUEDC，纯整数 0.8 缩放，透明色跳过） */
 static void ui_draw_remote_logo(void)
 {
-    /* 0.8 = 4/5：sy=y*5/4、sx=x*5/4，无浮点无除法。
-     * dst 152x92 @ (164,704)，跳过透明像素。 */
-    const int dw = (BOTTOM_LOGO_WIDTH * 4) / 5;    /* 152 */
-    const int dh = (BOTTOM_LOGO_HEIGHT * 4) / 5;   /* 92 */
-    const int dst_x = (UI_SCREEN_W - dw) / 2;      /* 164 */
-    const int dst_y = 704;
+    /* REMOTE 底部双 logo：瑞萨左 + 电赛右，纯整数 0.8 缩放（*5/4），透明色跳过。 */
     uint16_t * fb = (uint16_t *) gp_frame_buffer;
     const int stride = (int) g_hstride;
 
-    for (int y = 0; y < dh; y++)
+    /* 瑞萨：0.8 -> 136x58 @ (16, 738)，底部对齐 796 */
     {
-        int sy = (y * 5) / 4;
-        for (int x = 0; x < dw; x++)
+        const int dw = (RENESAS_LOGO_WIDTH * 4) / 5;
+        const int dh = (RENESAS_LOGO_HEIGHT * 4) / 5;
+        const int dst_x = 16, dst_y = 796 - dh;
+        for (int y = 0; y < dh; y++)
         {
-            int sx = (x * 5) / 4;
-            uint16_t c = g_bottom_logo_pixels[sy * BOTTOM_LOGO_WIDTH + sx];
-            if (BOTTOM_LOGO_TRANSPARENT_RGB565 != c)
+            int sy = (y * 5) / 4;
+            for (int x = 0; x < dw; x++)
             {
-                fb[(y + dst_y) * stride + (x + dst_x)] = c;
+                int sx = (x * 5) / 4;
+                uint16_t c = g_renesas_logo_pixels[sy * RENESAS_LOGO_WIDTH + sx];
+                if (RENESAS_LOGO_TRANSPARENT_RGB565 != c)
+                {
+                    fb[(y + dst_y) * stride + (x + dst_x)] = c;
+                }
+            }
+        }
+    }
+
+    /* 电赛 NUEDC：0.8 -> 152x92 @ (312, 704)，右移 */
+    {
+        const int dw = (BOTTOM_LOGO_WIDTH * 4) / 5;
+        const int dh = (BOTTOM_LOGO_HEIGHT * 4) / 5;
+        const int dst_x = 312, dst_y = 704;
+        for (int y = 0; y < dh; y++)
+        {
+            int sy = (y * 5) / 4;
+            for (int x = 0; x < dw; x++)
+            {
+                int sx = (x * 5) / 4;
+                uint16_t c = g_bottom_logo_pixels[sy * BOTTOM_LOGO_WIDTH + sx];
+                if (BOTTOM_LOGO_TRANSPARENT_RGB565 != c)
+                {
+                    fb[(y + dst_y) * stride + (x + dst_x)] = c;
+                }
             }
         }
     }
 }
+
 
 
 static void ui_draw_remote_panel(void)

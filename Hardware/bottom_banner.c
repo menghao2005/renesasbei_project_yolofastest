@@ -3,6 +3,7 @@
 #define BOTTOM_LOGO_IMPLEMENT
 #include "bottom_logo_data.h"
 #include "font_8x8.h"
+#define RENESAS_LOGO_IMPLEMENT
 #include "renesas_logo_data.h"
 
 #define BOTTOM_BANNER_WIDTH  (480U)
