@@ -805,7 +805,7 @@ static void ui_toggle_power(void)
             {
                 ui_remote_reset_to_home();
                 RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                             UI_REMOTE_GRIPPER_US, 3000U);
+                                             UI_REMOTE_GRIPPER_US, 5000U);
             }
             break;
 
@@ -839,7 +839,7 @@ static void ui_toggle_mode(void)
             /* 从自动流程切到遥控：机械臂先回车库位，等待遥控 */
             ui_remote_reset_to_home();
             RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                         UI_REMOTE_GRIPPER_US, 3000U);
+                                         UI_REMOTE_GRIPPER_US, 5000U);
         }
     }
     else
