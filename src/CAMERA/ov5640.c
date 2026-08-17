@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Copyright (c) 2020 - 2024 Renesas Electronics Corporation and/or its affiliates
 *
 * SPDX-License-Identifier: BSD-3-Clause
@@ -109,10 +109,10 @@ void ov5640_debug_dump_regs(void)
         0x4300, 0x460B, 0x460C, 0x4713, 0x4740, 0x4837, 0x5001, 0x501F,
     };
 
-    printf("OV5640 register dump:\r\n");
+    DBG_LOG("OV5640 register dump:\r\n");
     for (uint32_t i = 0; i < (sizeof(regs) / sizeof(regs[0])); i++)
     {
-        printf("  0x%04X = 0x%02X\r\n", regs[i], ov5640_read_reg(regs[i]));
+        DBG_LOG("  0x%04X = 0x%02X\r\n", regs[i], ov5640_read_reg(regs[i]));
     }
 }
 
@@ -416,7 +416,7 @@ uint8_t ov5640_init(void)
     chip_id = ov5640_get_chip_id(); /* 获取芯片ID */
     if (chip_id != OV5640_CHIP_ID)
     {
-        printf("ov5640_get_chip_id error!\r\n");
+        DBG_LOG("ov5640_get_chip_id error!\r\n");
         while(1){
             ;
         } //for debug

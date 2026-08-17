@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Copyright (c) 2020 - 2024 Renesas Electronics Corporation and/or its affiliates
 *
 * SPDX-License-Identifier: BSD-3-Clause
@@ -268,22 +268,22 @@ void SDRAMReadWrite32Bit_test(void)
        uint32_t first_err_count = 0;
 
        /* Print variable addresses for diagnosis */
-       printf("==== ADDRESS DUMP ====\r\n");
-       printf("&SRAM_write_buff_Cache = 0x%08lX\r\n", (unsigned long)(uintptr_t)SRAM_write_buff_Cache);
-       printf("&SRAM_read_buff_Cache  = 0x%08lX\r\n", (unsigned long)(uintptr_t)SRAM_read_buff_Cache);
-       printf("&sdram_cache           = 0x%08lX\r\n", (unsigned long)(uintptr_t)sdram_cache);
-       printf("&sdram_nocache         = 0x%08lX\r\n", (unsigned long)(uintptr_t)sdram_nocache);
-       printf("sizeof(sdram_cache)=%lu bytes\r\n", (unsigned long)sizeof(sdram_cache));
-       printf("sdram_cache end = 0x%08lX\r\n", (unsigned long)(uintptr_t)(&sdram_cache[datalen]));
-       printf("SDADR (MXC) register = 0x%02X (expected MXC=%lu)\r\n",
+       DBG_LOG("==== ADDRESS DUMP ====\r\n");
+       DBG_LOG("&SRAM_write_buff_Cache = 0x%08lX\r\n", (unsigned long)(uintptr_t)SRAM_write_buff_Cache);
+       DBG_LOG("&SRAM_read_buff_Cache  = 0x%08lX\r\n", (unsigned long)(uintptr_t)SRAM_read_buff_Cache);
+       DBG_LOG("&sdram_cache           = 0x%08lX\r\n", (unsigned long)(uintptr_t)sdram_cache);
+       DBG_LOG("&sdram_nocache         = 0x%08lX\r\n", (unsigned long)(uintptr_t)sdram_nocache);
+       DBG_LOG("sizeof(sdram_cache)=%lu bytes\r\n", (unsigned long)sizeof(sdram_cache));
+       DBG_LOG("sdram_cache end = 0x%08lX\r\n", (unsigned long)(uintptr_t)(&sdram_cache[datalen]));
+       DBG_LOG("SDADR (MXC) register = 0x%02X (expected MXC=%lu)\r\n",
               (unsigned)R_BUS->SDRAM.SDADR,
               (unsigned long)(BSP_PRV_SDRAM_SDADR_ROW_ADDR_OFFSET - 8U));
-       printf("======================\r\n");
+       DBG_LOG("======================\r\n");
 
-       printf("==== SDRAM test start, datalen=%lu words (=%lu bytes) ====\r\n",
+       DBG_LOG("==== SDRAM test start, datalen=%lu words (=%lu bytes) ====\r\n",
               (unsigned long)datalen, (unsigned long)datalen * 4);
 
-       printf("[A] direct write+readback test on sdram_cache[0] and [256]...\r\n");
+       DBG_LOG("[A] direct write+readback test on sdram_cache[0] and [256]...\r\n");
 
        /* Test 1: write known pattern to sdram_cache[0] and read back */
        sdram_cache[0] = 0xDEADBEEF;
@@ -291,12 +291,12 @@ void SDRAMReadWrite32Bit_test(void)
        sdram_cache[256] = 0xAABBCCDD;
        sdram_cache[257] = 0x11223344;
 
-       printf("  Wrote sdram_cache[0]=0xDEADBEEF,  [1]=0x12345678\r\n");
-       printf("  Wrote sdram_cache[256]=0xAABBCCDD, [257]=0x11223344\r\n");
-       printf("  Read sdram_cache[0]=0x%08lX (expect 0xDEADBEEF)\r\n", (unsigned long)sdram_cache[0]);
-       printf("  Read sdram_cache[1]=0x%08lX (expect 0x12345678)\r\n", (unsigned long)sdram_cache[1]);
-       printf("  Read sdram_cache[256]=0x%08lX (expect 0xAABBCCDD)\r\n", (unsigned long)sdram_cache[256]);
-       printf("  Read sdram_cache[257]=0x%08lX (expect 0x11223344)\r\n", (unsigned long)sdram_cache[257]);
+       DBG_LOG("  Wrote sdram_cache[0]=0xDEADBEEF,  [1]=0x12345678\r\n");
+       DBG_LOG("  Wrote sdram_cache[256]=0xAABBCCDD, [257]=0x11223344\r\n");
+       DBG_LOG("  Read sdram_cache[0]=0x%08lX (expect 0xDEADBEEF)\r\n", (unsigned long)sdram_cache[0]);
+       DBG_LOG("  Read sdram_cache[1]=0x%08lX (expect 0x12345678)\r\n", (unsigned long)sdram_cache[1]);
+       DBG_LOG("  Read sdram_cache[256]=0x%08lX (expect 0xAABBCCDD)\r\n", (unsigned long)sdram_cache[256]);
+       DBG_LOG("  Read sdram_cache[257]=0x%08lX (expect 0x11223344)\r\n", (unsigned long)sdram_cache[257]);
 
        /* Clear for main test */
        sdram_cache[0] = 0;
@@ -304,34 +304,34 @@ void SDRAMReadWrite32Bit_test(void)
        sdram_cache[256] = 0;
        sdram_cache[257] = 0;
 
-       printf("[B] filling SRAM buffer with sequential pattern...\r\n");
+       DBG_LOG("[B] filling SRAM buffer with sequential pattern...\r\n");
        for (index = 0; index < datalen; index++)
        {
            SRAM_write_buff_Cache[index] = index;
        }
-       printf("[B] OK\r\n");
+       DBG_LOG("[B] OK\r\n");
 
-       printf("[C] writing to sdram_cache...\r\n");
+       DBG_LOG("[C] writing to sdram_cache...\r\n");
        for (index = 0; index < datalen; index++)
        {
            sdram_cache[index] = SRAM_write_buff_Cache[index];
        }
-       printf("[C] OK\r\n");
+       DBG_LOG("[C] OK\r\n");
 
-       printf("[D] reading back from sdram_cache...\r\n");
+       DBG_LOG("[D] reading back from sdram_cache...\r\n");
        for (index = 0; index < datalen; index++)
        {
            SRAM_read_buff_Cache[index] = sdram_cache[index];
        }
-       printf("[D] OK\r\n");
+       DBG_LOG("[D] OK\r\n");
 
-       printf("[E] verifying (first 10 errors)...\r\n");
+       DBG_LOG("[E] verifying (first 10 errors)...\r\n");
        index = 0;
        while(index<datalen && first_err_count < 10)
        {
            if(SRAM_read_buff_Cache[index] != SRAM_write_buff_Cache[index])
            {
-               printf("  FAIL[%lu]: write_idx=%lu val=0x%08lX  read_idx=%lu val=0x%08lX (delta_idx=%ld)\r\n",
+               DBG_LOG("  FAIL[%lu]: write_idx=%lu val=0x%08lX  read_idx=%lu val=0x%08lX (delta_idx=%ld)\r\n",
                       (unsigned long)first_err_count,
                       (unsigned long)index,
                       (unsigned long)SRAM_write_buff_Cache[index],
@@ -345,11 +345,11 @@ void SDRAMReadWrite32Bit_test(void)
 
        if (first_err_count == 0)
        {
-           printf("**** SDRAM test PASS (all %lu words match) ****\r\n", (unsigned long)datalen);
+           DBG_LOG("**** SDRAM test PASS (all %lu words match) ****\r\n", (unsigned long)datalen);
        }
        else
        {
-           printf("**** SDRAM test FAILED: %lu mismatches found in first %lu words ****\r\n",
+           DBG_LOG("**** SDRAM test FAILED: %lu mismatches found in first %lu words ****\r\n",
                   (unsigned long)first_err_count, (unsigned long)index);
            while(1) { ; }
        }

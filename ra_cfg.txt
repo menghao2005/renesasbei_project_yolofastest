@@ -429,8 +429,8 @@ FSP Configuration
       P515 P15 - - - - Disabled - - "ESWM_GMII/MII: ET_TAS_STA0; ESWM_RGMII: ET_TAS_STA0; ESWM_RMII: ET_TAS_STA0; GLCDC: LCD_CLK; GPT13: GTIOC13A; IIC2: SCL2; IRQ: IRQ12; SCI4: CTS_RTS4; SCI4: DE4" - None - - 
       P600 P3 - - - - Disabled - - "CAC: CACREF; ESWM_GMII/MII: ET1_WOL; ESWM_RGMII1: ET1_WOL; ESWM_RMII1: ET1_WOL; GPT6: GTIOC6B; IRQ: IRQ30; OSPI0: OM_0_RSTO1; ULPT1: ULPTEVI1-DS" - None - - 
       P601 P4 - - L None Disabled - - "GPT6: GTIOC6A; IRQ: IRQ29; OSPI0: OM_0_WP1; RTC: RTCOUT; SCI0: DE0; SCI0: SCK0; ULPT0: ULPTEVI0" - IO - - 
-      P602 P2 - - - - Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - None - - 
-      P603 P1 - - - - Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - None - - 
+      P602 P2 - - L None Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - I - - 
+      P603 P1 - - L None Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - O - - 
       P604 N2 - - - - Disabled - - "GPT8: GTIOC8B; IRQ: IRQ26; OSPI1: OM_1_SIO7; SCI0: CTS_RTS0; SCI0: DE0" - None - - 
       P605 N1 - - - - Disabled - - "GPT8: GTIOC8A; IRQ: IRQ25; OSPI1: OM_1_SIO1; SCI0: CTS0" - None - - 
       P606 N3 GPIO - M - "Output mode (Initial Low)" - - "BUS: BC3; BUS: WR3; IRQ: IRQ24; OSPI1: OM_1_SIO6" - IO - - 
@@ -719,8 +719,8 @@ FSP Configuration
       P515 P15 - - - - Disabled - - "ESWM_GMII/MII: ET_TAS_STA0; ESWM_RGMII: ET_TAS_STA0; ESWM_RMII: ET_TAS_STA0; GLCDC: LCD_CLK; GPT13: GTIOC13A; IIC2: SCL2; IRQ: IRQ12; SCI4: CTS_RTS4; SCI4: DE4" - None - - 
       P600 P3 - - - - Disabled - - "CAC: CACREF; ESWM_GMII/MII: ET1_WOL; ESWM_RGMII1: ET1_WOL; ESWM_RMII1: ET1_WOL; GPT6: GTIOC6B; IRQ: IRQ30; OSPI0: OM_0_RSTO1; ULPT1: ULPTEVI1-DS" - None - - 
       P601 P4 - - L None Disabled - - "GPT6: GTIOC6A; IRQ: IRQ29; OSPI0: OM_0_WP1; RTC: RTCOUT; SCI0: DE0; SCI0: SCK0; ULPT0: ULPTEVI0" - IO - - 
-      P602 P2 - - - - Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - None - - 
-      P603 P1 - - - - Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - None - - 
+      P602 P2 - - L None Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - I - - 
+      P603 P1 - - L None Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - O - - 
       P604 N2 - - - - Disabled - - "GPT8: GTIOC8B; IRQ: IRQ26; OSPI1: OM_1_SIO7; SCI0: CTS_RTS0; SCI0: DE0" - None - - 
       P605 N1 - - - - Disabled - - "GPT8: GTIOC8A; IRQ: IRQ25; OSPI1: OM_1_SIO1; SCI0: CTS0" - None - - 
       P606 N3 - - L - Disabled - - "BUS: BC3; BUS: WR3; IRQ: IRQ24; OSPI1: OM_1_SIO6" - IO - - 
@@ -1009,8 +1009,8 @@ FSP Configuration
       P515 P15 - - - - Disabled - - "ESWM_GMII/MII: ET_TAS_STA0; ESWM_RGMII: ET_TAS_STA0; ESWM_RMII: ET_TAS_STA0; GLCDC: LCD_CLK; GPT13: GTIOC13A; IIC2: SCL2; IRQ: IRQ12; SCI4: CTS_RTS4; SCI4: DE4" - None - - 
       P600 P3 - - - - Disabled - - "CAC: CACREF; ESWM_GMII/MII: ET1_WOL; ESWM_RGMII1: ET1_WOL; ESWM_RMII1: ET1_WOL; GPT6: GTIOC6B; IRQ: IRQ30; OSPI0: OM_0_RSTO1; ULPT1: ULPTEVI1-DS" - None - - 
       P601 P4 GPT6_GTIOC6A - L None "Peripheral mode" - - "GPT6: GTIOC6A; IRQ: IRQ29; OSPI0: OM_0_WP1; RTC: RTCOUT; SCI0: DE0; SCI0: SCK0; ULPT0: ULPTEVI0" - IO - - 
-      P602 P2 - - - - Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - None - - 
-      P603 P1 - - - - Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - None - - 
+      P602 P2 SCI0_RXD0 - L None "Peripheral mode" - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - I - - 
+      P603 P1 SCI0_TXD0 - L None "Peripheral mode" - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - O - - 
       P604 N2 - - - - Disabled - - "GPT8: GTIOC8B; IRQ: IRQ26; OSPI1: OM_1_SIO7; SCI0: CTS_RTS0; SCI0: DE0" - None - - 
       P605 N1 - - - - Disabled - - "GPT8: GTIOC8A; IRQ: IRQ25; OSPI1: OM_1_SIO1; SCI0: CTS0" - None - - 
       P606 N3 GPIO - M - "Output mode (Initial High)" - - "BUS: BC3; BUS: WR3; IRQ: IRQ24; OSPI1: OM_1_SIO6" - IO - - 
@@ -1299,8 +1299,8 @@ FSP Configuration
       P515 P15 - - - - Disabled - - "ESWM_GMII/MII: ET_TAS_STA0; ESWM_RGMII: ET_TAS_STA0; ESWM_RMII: ET_TAS_STA0; GLCDC: LCD_CLK; GPT13: GTIOC13A; IIC2: SCL2; IRQ: IRQ12; SCI4: CTS_RTS4; SCI4: DE4" - None - - 
       P600 P3 - - - - Disabled - - "CAC: CACREF; ESWM_GMII/MII: ET1_WOL; ESWM_RGMII1: ET1_WOL; ESWM_RMII1: ET1_WOL; GPT6: GTIOC6B; IRQ: IRQ30; OSPI0: OM_0_RSTO1; ULPT1: ULPTEVI1-DS" - None - - 
       P601 P4 - - L None Disabled - - "GPT6: GTIOC6A; IRQ: IRQ29; OSPI0: OM_0_WP1; RTC: RTCOUT; SCI0: DE0; SCI0: SCK0; ULPT0: ULPTEVI0" - IO - - 
-      P602 P2 - - - - Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - None - - 
-      P603 P1 - - - - Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - None - - 
+      P602 P2 - - L None Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - I - - 
+      P603 P1 - - L None Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - O - - 
       P604 N2 - - - - Disabled - - "GPT8: GTIOC8B; IRQ: IRQ26; OSPI1: OM_1_SIO7; SCI0: CTS_RTS0; SCI0: DE0" - None - - 
       P605 N1 - - - - Disabled - - "GPT8: GTIOC8A; IRQ: IRQ25; OSPI1: OM_1_SIO1; SCI0: CTS0" - None - - 
       P606 N3 - - L - Disabled - - "BUS: BC3; BUS: WR3; IRQ: IRQ24; OSPI1: OM_1_SIO6" - IO - - 
@@ -1589,8 +1589,8 @@ FSP Configuration
       P515 P15 - - - - Disabled - - "ESWM_GMII/MII: ET_TAS_STA0; ESWM_RGMII: ET_TAS_STA0; ESWM_RMII: ET_TAS_STA0; GLCDC: LCD_CLK; GPT13: GTIOC13A; IIC2: SCL2; IRQ: IRQ12; SCI4: CTS_RTS4; SCI4: DE4" - None - - 
       P600 P3 - - - - Disabled - - "CAC: CACREF; ESWM_GMII/MII: ET1_WOL; ESWM_RGMII1: ET1_WOL; ESWM_RMII1: ET1_WOL; GPT6: GTIOC6B; IRQ: IRQ30; OSPI0: OM_0_RSTO1; ULPT1: ULPTEVI1-DS" - None - - 
       P601 P4 - - L None Disabled - - "GPT6: GTIOC6A; IRQ: IRQ29; OSPI0: OM_0_WP1; RTC: RTCOUT; SCI0: DE0; SCI0: SCK0; ULPT0: ULPTEVI0" - IO - - 
-      P602 P2 - - - - Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - None - - 
-      P603 P1 - - - - Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - None - - 
+      P602 P2 - - L None Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - I - - 
+      P603 P1 - - L None Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - O - - 
       P604 N2 - - - - Disabled - - "GPT8: GTIOC8B; IRQ: IRQ26; OSPI1: OM_1_SIO7; SCI0: CTS_RTS0; SCI0: DE0" - None - - 
       P605 N1 - - - - Disabled - - "GPT8: GTIOC8A; IRQ: IRQ25; OSPI1: OM_1_SIO1; SCI0: CTS0" - None - - 
       P606 N3 GPIO - M - "Output mode (Initial High)" - - "BUS: BC3; BUS: WR3; IRQ: IRQ24; OSPI1: OM_1_SIO6" - IO - - 
@@ -1879,8 +1879,8 @@ FSP Configuration
       P515 P15 - - - - Disabled - - "ESWM_GMII/MII: ET_TAS_STA0; ESWM_RGMII: ET_TAS_STA0; ESWM_RMII: ET_TAS_STA0; GLCDC: LCD_CLK; GPT13: GTIOC13A; IIC2: SCL2; IRQ: IRQ12; SCI4: CTS_RTS4; SCI4: DE4" - None - - 
       P600 P3 - - - - Disabled - - "CAC: CACREF; ESWM_GMII/MII: ET1_WOL; ESWM_RGMII1: ET1_WOL; ESWM_RMII1: ET1_WOL; GPT6: GTIOC6B; IRQ: IRQ30; OSPI0: OM_0_RSTO1; ULPT1: ULPTEVI1-DS" - None - - 
       P601 P4 - - L None Disabled - - "GPT6: GTIOC6A; IRQ: IRQ29; OSPI0: OM_0_WP1; RTC: RTCOUT; SCI0: DE0; SCI0: SCK0; ULPT0: ULPTEVI0" - IO - - 
-      P602 P2 - - - - Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - None - - 
-      P603 P1 - - - - Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - None - - 
+      P602 P2 - - L None Disabled - - "GPT7: GTIOC7B; IRQ: IRQ28; OSPI1: OM_1_SCLKN; SCI0: RXD0; ULPT0: ULPTEE0" - I - - 
+      P603 P1 - - L None Disabled - - "GPT7: GTIOC7A; IRQ: IRQ27; OSPI1: OM_1_SCLK; SCI0: TXD0; ULPT0: ULPTO0" - O - - 
       P604 N2 - - - - Disabled - - "GPT8: GTIOC8B; IRQ: IRQ26; OSPI1: OM_1_SIO7; SCI0: CTS_RTS0; SCI0: DE0" - None - - 
       P605 N1 - - - - Disabled - - "GPT8: GTIOC8A; IRQ: IRQ25; OSPI1: OM_1_SIO1; SCI0: CTS0" - None - - 
       P606 N3 GPIO - M - "Output mode (Initial High)" - - "BUS: BC3; BUS: WR3; IRQ: IRQ24; OSPI1: OM_1_SIO6" - IO - - 
@@ -2275,7 +2275,7 @@ FSP Configuration
     Instance "g_i2c_master0 I2C Master (r_iic_master)"
       Name: g_i2c_master0
       Channel: 0
-      Rate: Fast-mode
+      Rate: Standard
       Custom Rate (bps): 0
       Rise Time (ns): 120
       Fall Time (ns): 120
@@ -2913,4 +2913,31 @@ FSP Configuration
       Extra Features: Interrupt Skipping (Channels with GTITC only): Skip ADC Events: None
       Extra Features: Output Disable: GTIOCA Disable Setting: Disable Prohibited
       Extra Features: Output Disable: GTIOCB Disable Setting: Disable Prohibited
+      
+    Instance "g_uart0_asrpro UART (r_sci_b_uart)"
+      General: Name: g_uart0_asrpro
+      General: Channel: 0
+      General: Data Bits: 8bits
+      General: Parity: None
+      General: Stop Bits: 1bit
+      Baud: Baud Rate: 115200
+      Baud: Baud Rate Modulation: Disabled
+      Baud: Max Error (%): 5
+      Flow Control: CTS/RTS Selection: Hardware RTS
+      Flow Control: Software RTS Port: Disabled
+      Flow Control: Software RTS Pin: Disabled
+      Extra: Clock Source: Internal Clock
+      Extra: Start bit detection: Falling Edge
+      Extra: Noise Filter: Disable
+      Extra: Receive FIFO Trigger Level: Max
+      Extra: RS-485: DE Pin: Disable
+      Extra: RS-485: DE Pin Polarity: Active High
+      Extra: RS-485: DE Pin Assertion Time: 1
+      Extra: RS-485: DE Pin Negation Time: 1
+      Extra: TXI/TEI Synchronization Delay Cycles: 0
+      Interrupts: Callback: g_uart0_asrpro_callback
+      Interrupts: Receive Interrupt Priority: Priority 12
+      Interrupts: Transmit Data Empty Interrupt Priority: Priority 12
+      Interrupts: Transmit End Interrupt Priority: Priority 12
+      Interrupts: Error Interrupt Priority: Priority 12
       

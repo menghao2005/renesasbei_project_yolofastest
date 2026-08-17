@@ -1045,7 +1045,7 @@ static void ui_joy_apply(void)
     g_remote_forearm = (uint16_t) forearm;
 
     RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                 UI_REMOTE_GRIPPER_US, UI_REMOTE_MOVE_MS);
+                                 g_gripper_closed ? 1350U : 900U, UI_REMOTE_MOVE_MS);
 }
 
 

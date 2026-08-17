@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Copyright (c) 2020 - 2024 Renesas Electronics Corporation and/or its affiliates
 *
 * SPDX-License-Identifier: BSD-3-Clause
@@ -33,6 +33,7 @@
 #include "mipi_dsi_ep.h"
 #include "math.h"
 #include "stdio.h"
+#include "Uart9_Debug.h"
 
 //#include "perf_counter/perf_counter.h"
 
@@ -115,7 +116,7 @@ static void ceu_apply_sync_try(void)
     if (last_printed_index != g_ceu_sync_try_index)
     {
         last_printed_index = g_ceu_sync_try_index;
-        printf("CEU sync try[%lu/%lu]: HDPOL=%u VDPOL=%u HDSEL=%u VDSEL=%u CAMCR=0x%08lX\r\n",
+        DBG_LOG("CEU sync try[%lu/%lu]: HDPOL=%u VDPOL=%u HDSEL=%u VDSEL=%u CAMCR=0x%08lX\r\n",
                (unsigned long) g_ceu_sync_try_index,
                (unsigned long) (sizeof(g_ceu_sync_tries) / sizeof(g_ceu_sync_tries[0])),
                p_try->hdpol,
@@ -152,20 +153,20 @@ static bool ceu_event_is_sync_warning(ceu_event_t event)
 
 static void ceu_print_event(ceu_event_t event)
 {
-    printf("CEU event=0x%08lX", (uint32_t) event);
+    DBG_LOG("CEU event=0x%08lX", (uint32_t) event);
 
-    if (event & CEU_EVENT_FRAME_END)     printf(" FRAME_END");
-    if (event & CEU_EVENT_HD)            printf(" HD");
-    if (event & CEU_EVENT_VD)            printf(" VD");
-    if (event & CEU_EVENT_CRAM_OVERFLOW) printf(" CRAM_OVERFLOW");
-    if (event & CEU_EVENT_HD_MISMATCH)   printf(" HD_MISMATCH");
-    if (event & CEU_EVENT_VD_MISMATCH)   printf(" VD_MISMATCH");
-    if (event & CEU_EVENT_VD_ERROR)      printf(" VD_ERROR");
-    if (event & CEU_EVENT_FIREWALL)      printf(" FIREWALL");
-    if (event & CEU_EVENT_HD_MISSING)    printf(" HD_MISSING");
-    if (event & CEU_EVENT_VD_MISSING)    printf(" VD_MISSING");
+    if (event & CEU_EVENT_FRAME_END)     DBG_LOG(" FRAME_END");
+    if (event & CEU_EVENT_HD)            DBG_LOG(" HD");
+    if (event & CEU_EVENT_VD)            DBG_LOG(" VD");
+    if (event & CEU_EVENT_CRAM_OVERFLOW) DBG_LOG(" CRAM_OVERFLOW");
+    if (event & CEU_EVENT_HD_MISMATCH)   DBG_LOG(" HD_MISMATCH");
+    if (event & CEU_EVENT_VD_MISMATCH)   DBG_LOG(" VD_MISMATCH");
+    if (event & CEU_EVENT_VD_ERROR)      DBG_LOG(" VD_ERROR");
+    if (event & CEU_EVENT_FIREWALL)      DBG_LOG(" FIREWALL");
+    if (event & CEU_EVENT_HD_MISSING)    DBG_LOG(" HD_MISSING");
+    if (event & CEU_EVENT_VD_MISSING)    DBG_LOG(" VD_MISSING");
 
-    printf("\r\n");
+    DBG_LOG("\r\n");
 }
 
 static void ceu_reopen_after_timeout(void)
@@ -178,7 +179,7 @@ static void ceu_reopen_after_timeout(void)
     bool print_recover = (s_recover_count <= 3U) || (0U == (s_recover_count % 10U));
     if (print_recover)
     {
-        printf("CEU recover: close=%d\r\n", close_err);
+        DBG_LOG("CEU recover: close=%d\r\n", close_err);
     }
 
     if ((FSP_SUCCESS == close_err) || (FSP_ERR_NOT_OPEN == close_err))
@@ -186,7 +187,7 @@ static void ceu_reopen_after_timeout(void)
         open_err = R_CEU_Open(&g_ceu_vga_ctrl, &g_ceu_vga_cfg);
         if (print_recover)
         {
-            printf("CEU recover: open=%d\r\n", open_err);
+            DBG_LOG("CEU recover: open=%d\r\n", open_err);
         }
         /* Open 会用 cfg 默认 CAMCR 覆盖同步极性——必须重新应用 index 0
          * （实测有效极性），否则 recover 后同步错乱 → 帧不来 → 循环 recover 刷屏 */
@@ -292,27 +293,27 @@ static fsp_err_t ceu_wait_for_capture_complete(uint32_t *used_ms, uint32_t timeo
             capture_status_t status = {0};
             fsp_err_t status_err = R_CEU_StatusGet(&g_ceu_vga_ctrl, &status);
 
-            printf(" ** CEU Callback event not received ** \r\n");
-            printf("CEU callbacks: frame_end=%lu errors=%lu\r\n",
+            DBG_LOG(" ** CEU Callback event not received ** \r\n");
+            DBG_LOG("CEU callbacks: frame_end=%lu errors=%lu\r\n",
                    (unsigned long) g_ceu_frame_end_count,
                    (unsigned long) g_ceu_error_count);
-            printf("CEU zero events: %lu\r\n", (unsigned long) g_ceu_zero_event_count);
-            printf("CEU sync events: %lu\r\n", (unsigned long) g_ceu_sync_event_count);
-            printf("CEU hd/vd events: hd=%lu vd=%lu\r\n",
+            DBG_LOG("CEU zero events: %lu\r\n", (unsigned long) g_ceu_zero_event_count);
+            DBG_LOG("CEU sync events: %lu\r\n", (unsigned long) g_ceu_sync_event_count);
+            DBG_LOG("CEU hd/vd events: hd=%lu vd=%lu\r\n",
                    (unsigned long) g_ceu_hd_event_count,
                    (unsigned long) g_ceu_vd_event_count);
-            printf("CEU status: err=%d state=%d data_size=%lu buffer=0x%08lX\r\n",
+            DBG_LOG("CEU status: err=%d state=%d data_size=%lu buffer=0x%08lX\r\n",
                    status_err,
                    status.state,
                    (unsigned long) status.data_size,
                    (unsigned long) status.p_buffer);
-            printf("CEU regs: CAMCR=0x%08lX CAPSR=0x%08lX CSTSR=0x%08lX CEIER=0x%08lX CETCR=0x%08lX\r\n",
+            DBG_LOG("CEU regs: CAMCR=0x%08lX CAPSR=0x%08lX CSTSR=0x%08lX CEIER=0x%08lX CETCR=0x%08lX\r\n",
                    (unsigned long) R_CEU->CAMCR,
                    (unsigned long) R_CEU->CAPSR,
                    (unsigned long) R_CEU->CSTSR,
                    (unsigned long) R_CEU->CEIER,
                    (unsigned long) R_CEU->CETCR);
-            printf("CEU size: CMCYR=0x%08lX CAPWR=0x%08lX CDWDR=0x%08lX CDSSR=0x%08lX\r\n",
+            DBG_LOG("CEU size: CMCYR=0x%08lX CAPWR=0x%08lX CDWDR=0x%08lX CDSSR=0x%08lX\r\n",
                    (unsigned long) R_CEU->CMCYR,
                    (unsigned long) R_CEU->CAPWR,
                    (unsigned long) R_CEU->CDWDR,
@@ -333,9 +334,9 @@ static fsp_err_t ceu_wait_for_capture_complete(uint32_t *used_ms, uint32_t timeo
 
     if (0U == (g_ceu_last_event & CEU_EVENT_FRAME_END))
     {
-        printf(" ** CEU capture stopped by non-frame event ** \r\n");
+        DBG_LOG(" ** CEU capture stopped by non-frame event ** \r\n");
         ceu_print_event(g_ceu_last_event);
-        printf("CEU callbacks: hd=%lu vd=%lu zero=%lu frame_end=%lu errors=%lu\r\n",
+        DBG_LOG("CEU callbacks: hd=%lu vd=%lu zero=%lu frame_end=%lu errors=%lu\r\n",
                (unsigned long) g_ceu_hd_event_count,
                (unsigned long) g_ceu_vd_event_count,
                (unsigned long) g_ceu_zero_event_count,
@@ -400,13 +401,13 @@ fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t *used_ms)
     err = ceu_capture_start(p_buffer);
     if (FSP_SUCCESS != err)
     {
-        printf(" ** R_CEU_CaptureStart API FAILED: %d ** \r\n", err);
+        DBG_LOG(" ** R_CEU_CaptureStart API FAILED: %d ** \r\n", err);
         return err;
     }
     err = ceu_capture_wait(used_ms, 2000U);
     if (FSP_SUCCESS != err)
     {
-        printf("CEU callbacks: before=%lu now=%lu frame_end=%lu errors=%lu\r\n",
+        DBG_LOG("CEU callbacks: before=%lu now=%lu frame_end=%lu errors=%lu\r\n",
                (unsigned long) callback_count_before,
                (unsigned long) g_ceu_callback_count,
                (unsigned long) g_ceu_frame_end_count,
@@ -665,25 +666,25 @@ void camera_signal_probe(void)
         R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MICROSECONDS);
     }
 
-    printf("Camera signal probe: samples=%u\r\n", SAMPLE_COUNT);
-    printf("  P414 VIO_CLK: high=%lu toggle=%lu\r\n", (unsigned long) clk_high, (unsigned long) clk_toggle);
-    printf("  P415 VIO_HD : high=%lu toggle=%lu\r\n", (unsigned long) hd_high, (unsigned long) hd_toggle);
-    printf("  P708 VIO_VD : high=%lu toggle=%lu\r\n", (unsigned long) vd_high, (unsigned long) vd_toggle);
+    DBG_LOG("Camera signal probe: samples=%u\r\n", SAMPLE_COUNT);
+    DBG_LOG("  P414 VIO_CLK: high=%lu toggle=%lu\r\n", (unsigned long) clk_high, (unsigned long) clk_toggle);
+    DBG_LOG("  P415 VIO_HD : high=%lu toggle=%lu\r\n", (unsigned long) hd_high, (unsigned long) hd_toggle);
+    DBG_LOG("  P708 VIO_VD : high=%lu toggle=%lu\r\n", (unsigned long) vd_high, (unsigned long) vd_toggle);
 
     uint32_t p414_pfs = R_PFS->PORT[4].PIN[14].PmnPFS;
     uint32_t p415_pfs = R_PFS->PORT[4].PIN[15].PmnPFS;
     uint32_t p708_pfs = R_PFS->PORT[7].PIN[8].PmnPFS;
-    printf("  P414 PFS=0x%08lX PMR=%lu PSEL=0x%02lX PIDR=%lu\r\n",
+    DBG_LOG("  P414 PFS=0x%08lX PMR=%lu PSEL=0x%02lX PIDR=%lu\r\n",
            (unsigned long) p414_pfs,
            (unsigned long) R_PFS->PORT[4].PIN[14].PmnPFS_b.PMR,
            (unsigned long) R_PFS->PORT[4].PIN[14].PmnPFS_b.PSEL,
            (unsigned long) R_PFS->PORT[4].PIN[14].PmnPFS_b.PIDR);
-    printf("  P415 PFS=0x%08lX PMR=%lu PSEL=0x%02lX PIDR=%lu\r\n",
+    DBG_LOG("  P415 PFS=0x%08lX PMR=%lu PSEL=0x%02lX PIDR=%lu\r\n",
            (unsigned long) p415_pfs,
            (unsigned long) R_PFS->PORT[4].PIN[15].PmnPFS_b.PMR,
            (unsigned long) R_PFS->PORT[4].PIN[15].PmnPFS_b.PSEL,
            (unsigned long) R_PFS->PORT[4].PIN[15].PmnPFS_b.PIDR);
-    printf("  P708 PFS=0x%08lX PMR=%lu PSEL=0x%02lX PIDR=%lu\r\n",
+    DBG_LOG("  P708 PFS=0x%08lX PMR=%lu PSEL=0x%02lX PIDR=%lu\r\n",
            (unsigned long) p708_pfs,
            (unsigned long) R_PFS->PORT[7].PIN[8].PmnPFS_b.PMR,
            (unsigned long) R_PFS->PORT[7].PIN[8].PmnPFS_b.PSEL,

@@ -52,7 +52,7 @@ static bool wait_vsync_with_timeout(uint32_t timeout_ms)
         waited_ms++;
         if (waited_ms >= timeout_ms)
         {
-            printf("[VSYNC] timeout after %lu ms\r\n", (unsigned long) timeout_ms);
+            DBG_LOG("[VSYNC] timeout after %lu ms\r\n", (unsigned long) timeout_ms);
             return false;
         }
     }
@@ -109,7 +109,7 @@ static void pipeline_profile_print_every(const pipeline_profile_t * p_profile)
         extern volatile uint32_t g_ceu_callback_count;
         extern volatile uint32_t g_ceu_sync_event_count;
 
-        printf("[PIPE] frame=%lu fps=%lu.%02lu total=%lu us ceu_wait=%lu us ceu_kick=%lu us vsync=%lu us blit=%lu us draw=%lu us pre=%lu us model=%lu us post=%lu us center=%lu us ceu_fe=%lu ceu_err=%lu ceu_cb=%lu ceu_sync=%lu\r\n",
+        DBG_LOG("[PIPE] frame=%lu fps=%lu.%02lu total=%lu us ceu_wait=%lu us ceu_kick=%lu us vsync=%lu us blit=%lu us draw=%lu us pre=%lu us model=%lu us post=%lu us center=%lu us ceu_fe=%lu ceu_err=%lu ceu_cb=%lu ceu_sync=%lu\r\n",
                (unsigned long) s_frame_count,
                (unsigned long) fps_int,
                (unsigned long) fps_frac,
@@ -153,20 +153,20 @@ void hal_entry(void)
     }
 
     uart9_Init();
-    printf("test\r\n");
+    DBG_LOG("test\r\n");
 
     RobotArm_Init();
     err = g_timer_servo_tick.p_api->open(g_timer_servo_tick.p_ctrl, g_timer_servo_tick.p_cfg);
     if (FSP_SUCCESS != err)
     {
-        printf("Servo tick timer open failed: %d\r\n", (int) err);
+        DBG_LOG("Servo tick timer open failed: %d\r\n", (int) err);
     }
     else
     {
         err = g_timer_servo_tick.p_api->start(g_timer_servo_tick.p_ctrl);
         if (FSP_SUCCESS != err)
         {
-            printf("Servo tick timer start failed: %d\r\n", (int) err);
+            DBG_LOG("Servo tick timer start failed: %d\r\n", (int) err);
         }
     }
 
@@ -192,11 +192,11 @@ void hal_entry(void)
     err  = RM_ETHOSU_Open(&g_rm_ethosu0_ctrl, &g_rm_ethosu0_cfg);
     if (FSP_SUCCESS != err)
     {
-        printf("NPU Ethos-U55 open failed: %d\r\n", err);
+        DBG_LOG("NPU Ethos-U55 open failed: %d\r\n", err);
     }
     else
     {
-        printf("NPU Ethos-U55 initialized successfully\r\n");
+        DBG_LOG("NPU Ethos-U55 initialized successfully\r\n");
     }
 
     /*
@@ -220,7 +220,7 @@ void hal_entry(void)
     int8_t *p_model_input = GetModelInputPtr_serving_default_images_0();
     int8_t *p_model_p4    = GetModelOutputPtr_PartitionedCall_0_70298();
     int8_t *p_model_p5    = GetModelOutputPtr_PartitionedCall_1_70299();
-    printf("[MODEL] profiling enabled on UART9; backend=tflite-int8(cpu+npu)\r\n");
+    DBG_LOG("[MODEL] profiling enabled on UART9; backend=tflite-int8(cpu+npu)\r\n");
     DWT_init();
     ui_control_draw_boot_text("READY");         /* 上电提示：就绪（首帧相机画面即将覆盖） */
     /* 上电不启动抓取：等待用户在屏幕上按 POWER 开关后，由 ui_control 启动
@@ -229,7 +229,7 @@ void hal_entry(void)
     err = ceu_capture_start(p_camera_buffers[frame_index_display]);
     if (FSP_SUCCESS != err)
     {
-        printf("CEU initial capture start failed: %d\r\n", (int) err);
+        DBG_LOG("CEU initial capture start failed: %d\r\n", (int) err);
         return;
     }
     /* 中断级 kick：告知回调当前采集缓冲（此后每帧 FRAME_END 由回调直接 kick 下一帧） */
@@ -240,17 +240,17 @@ void hal_entry(void)
     err = ceu_capture_wait(&ceu_used, 5000U);
     if (FSP_SUCCESS != err)
     {
-        printf("CEU initial wait: %d, retry capture\r\n", (int) err);
+        DBG_LOG("CEU initial wait: %d, retry capture\r\n", (int) err);
         prepare_camera_capture_buffer(p_camera_buffers[frame_index_display]);
         err = ceu_capture_start(p_camera_buffers[frame_index_display]);
         if (FSP_SUCCESS != err)
         {
-            printf("CEU initial kick failed: %d\r\n", (int) err);
+            DBG_LOG("CEU initial kick failed: %d\r\n", (int) err);
         }
         err = ceu_capture_wait(&ceu_used, 5000U);
         if (FSP_SUCCESS != err)
         {
-            printf("CEU initial wait retry failed: %d, continue to main loop\r\n", (int) err);
+            DBG_LOG("CEU initial wait retry failed: %d, continue to main loop\r\n", (int) err);
         }
     }
 
@@ -397,7 +397,7 @@ void hal_entry(void)
               err = ceu_capture_start(g_image_vga_sdram[0]);
               if (FSP_SUCCESS != err)
               {
-                  printf("CEU recover kick failed: %d\r\n", (int) err);
+                  DBG_LOG("CEU recover kick failed: %d\r\n", (int) err);
               }
               ceu_set_capture_buf(g_image_vga_sdram[0]);
           }

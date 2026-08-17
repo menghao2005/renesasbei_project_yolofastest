@@ -1,8 +1,9 @@
-#include "Stepping_Motor.h"
+﻿#include "Stepping_Motor.h"
 #include <stdio.h>
 #include <stdint.h>
 
 #define GPT_GTWP_RESET_VALUE        (0xA500U)
+#include "Uart9_Debug.h"
 #define GPT_GTIO_TOGGLE_ON_COMPARE  (0x03U)
 #define GPT_GTBER_DISABLE_AB_BUFFER (0x00500000U)
 #define GPT_MAX_PERIOD_COUNTS       (0xFFFFFFFFU)
@@ -66,7 +67,7 @@ static void gpt_log_error(char const * const api_name, fsp_err_t err)
 {
     if (FSP_SUCCESS != err)
     {
-        printf("%s failed: %d\r\n", api_name, err);
+        DBG_LOG("%s failed: %d\r\n", api_name, err);
     }
 }
 
@@ -395,7 +396,7 @@ void Stepping_Motor_Stopping_Init(void)
     g_motor_runtime[LeftSide].output_is_high = false;
     g_motor_runtime[RightSide].output_is_high = false;
 
-    printf("STEP stop\r\n");
+    DBG_LOG("STEP stop\r\n");
 }
 
 void Go_Distance_Init(float distance_cm)

@@ -1,3 +1,4 @@
+﻿#include "Uart9_Debug.h"
 /*
  * This file is developed by EdgeCortix Inc. to be used with certain Renesas Electronics Hardware only.
  *
@@ -86,7 +87,7 @@ static void model_profile_print_every(const model_profile_t *p_profile)
   s_frame_count++;
   if ((1U == s_frame_count) || (0U == (s_frame_count % MODEL_PROFILE_PRINT_INTERVAL)))
   {
-    printf("[MODEL] frame=%lu backend=tflite-int8(cpu+npu) total=%lu us cpu=%lu us npu=%lu us copy=%lu us\r\n",
+    DBG_LOG("[MODEL] frame=%lu backend=tflite-int8(cpu+npu) total=%lu us cpu=%lu us npu=%lu us copy=%lu us\r\n",
            (unsigned long) s_frame_count,
            (unsigned long) p_profile->total_us,
            (unsigned long) p_profile->cpu_us,

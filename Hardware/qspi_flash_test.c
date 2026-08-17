@@ -1,4 +1,4 @@
-#include "qspi_flash_test.h"
+﻿#include "qspi_flash_test.h"
 #include "Uart9_Debug.h"
 #include "stdio.h"
 #include "string.h"
@@ -16,7 +16,7 @@ static fsp_err_t qspi_wait_ready(spi_flash_ctrl_t *p_ctrl)
     do {
         fsp_err_t err = R_OSPI_B_StatusGet(p_ctrl, &status);
         if (FSP_SUCCESS != err) {
-            printf("  [ERR] StatusGet failed: %d\r\n", err);
+            DBG_LOG("  [ERR] StatusGet failed: %d\r\n", err);
             return err;
         }
         if (!status.write_in_progress) {
@@ -25,7 +25,7 @@ static fsp_err_t qspi_wait_ready(spi_flash_ctrl_t *p_ctrl)
         timeout--;
     } while (timeout > 0);
 
-    printf("  [ERR] Flash busy timeout!\r\n");
+    DBG_LOG("  [ERR] Flash busy timeout!\r\n");
     return FSP_ERR_TIMEOUT;
 }
 
@@ -79,21 +79,21 @@ static fsp_err_t qspi_direct_read(spi_flash_ctrl_t *p_ctrl, uint32_t addr,
 /* 打印 Flash 设备信息 */
 void qspi_flash_info(void)
 {
-    printf("========================================\r\n");
-    printf("  QSPI Flash (OSPI-B) Info\r\n");
-    printf("========================================\r\n");
-    printf("  Instance:     g_ospi0\r\n");
-    printf("  Channel:      CS0\r\n");
-    printf("  Base Address: 0x80000000\r\n");
-    printf("  Size:         256 MB\r\n");
-    printf("  Protocol:     1S-1S-1S / 1S-4S-4S\r\n");
-    printf("  Page Size:    64 bytes\r\n");
-    printf("  Erase Cmds:   0x20 (4KB), 0x52 (32KB), 0x60 (Chip)\r\n");
-    printf("  Read Cmd:     0x03 (std), 0xEB (fast quad)\r\n");
-    printf("  Write Cmd:    0x02 (std), 0x32 (quad)\r\n");
-    printf("  Prefetch:     Enabled\r\n");
-    printf("  Combination:  64-byte\r\n");
-    printf("========================================\r\n");
+    DBG_LOG("========================================\r\n");
+    DBG_LOG("  QSPI Flash (OSPI-B) Info\r\n");
+    DBG_LOG("========================================\r\n");
+    DBG_LOG("  Instance:     g_ospi0\r\n");
+    DBG_LOG("  Channel:      CS0\r\n");
+    DBG_LOG("  Base Address: 0x80000000\r\n");
+    DBG_LOG("  Size:         256 MB\r\n");
+    DBG_LOG("  Protocol:     1S-1S-1S / 1S-4S-4S\r\n");
+    DBG_LOG("  Page Size:    64 bytes\r\n");
+    DBG_LOG("  Erase Cmds:   0x20 (4KB), 0x52 (32KB), 0x60 (Chip)\r\n");
+    DBG_LOG("  Read Cmd:     0x03 (std), 0xEB (fast quad)\r\n");
+    DBG_LOG("  Write Cmd:    0x02 (std), 0x32 (quad)\r\n");
+    DBG_LOG("  Prefetch:     Enabled\r\n");
+    DBG_LOG("  Combination:  64-byte\r\n");
+    DBG_LOG("========================================\r\n");
 }
 
 /* 完整读写擦测试 */
@@ -103,26 +103,26 @@ qspi_test_result_t qspi_flash_test(void)
     uint32_t  i;
     uint32_t  fail_count = 0;
 
-    printf("\r\n");
-    printf("########################################\r\n");
-    printf("#  QSPI Flash Read/Write/Erase Test   #\r\n");
-    printf("########################################\r\n");
+    DBG_LOG("\r\n");
+    DBG_LOG("########################################\r\n");
+    DBG_LOG("#  QSPI Flash Read/Write/Erase Test   #\r\n");
+    DBG_LOG("########################################\r\n");
     qspi_flash_info();
 
     /* ====== Step 1: 打开 QSPI Flash 驱动 ====== */
-    printf("\r\n[1/5] Opening QSPI Flash driver...\r\n");
+    DBG_LOG("\r\n[1/5] Opening QSPI Flash driver...\r\n");
     err = R_OSPI_B_Open(&g_ospi0_ctrl, &g_ospi0_cfg);
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] R_OSPI_B_Open failed: %d\r\n", err);
+        DBG_LOG("  [ERR] R_OSPI_B_Open failed: %d\r\n", err);
         return QSPI_TEST_ERR_OPEN;
     }
-    printf("  [OK]  Driver opened successfully.\r\n");
+    DBG_LOG("  [OK]  Driver opened successfully.\r\n");
 
     /* ====== Step 2: 擦除目标 sector ====== */
-    printf("\r\n[2/5] Erasing sector at 0x%08X...\r\n", (uint32_t)QSPI_TEST_ADDRESS);
+    DBG_LOG("\r\n[2/5] Erasing sector at 0x%08X...\r\n", (uint32_t)QSPI_TEST_ADDRESS);
     err = R_OSPI_B_Erase(&g_ospi0_ctrl, QSPI_TEST_ADDRESS, QSPI_TEST_SECTOR_SIZE);
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] R_OSPI_B_Erase failed: %d\r\n", err);
+        DBG_LOG("  [ERR] R_OSPI_B_Erase failed: %d\r\n", err);
         R_OSPI_B_Close(&g_ospi0_ctrl);
         return QSPI_TEST_ERR_ERASE;
     }
@@ -131,15 +131,15 @@ qspi_test_result_t qspi_flash_test(void)
         R_OSPI_B_Close(&g_ospi0_ctrl);
         return QSPI_TEST_ERR_TIMEOUT;
     }
-    printf("  [OK]  Sector erased.\r\n");
+    DBG_LOG("  [OK]  Sector erased.\r\n");
 
     /* ====== Step 3: 验证擦除（读回全 0xFF） ====== */
-    printf("\r\n[3/5] Verifying erase (expect all 0xFF)...\r\n");
+    DBG_LOG("\r\n[3/5] Verifying erase (expect all 0xFF)...\r\n");
     memset(g_qspi_read_buf, 0x00, QSPI_TEST_SIZE);
     err = qspi_direct_read(&g_ospi0_ctrl, (uint32_t)QSPI_TEST_ADDRESS,
                            g_qspi_read_buf, QSPI_TEST_SIZE);
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] DirectTransfer read failed: %d\r\n", err);
+        DBG_LOG("  [ERR] DirectTransfer read failed: %d\r\n", err);
         R_OSPI_B_Close(&g_ospi0_ctrl);
         return QSPI_TEST_ERR_READ;
     }
@@ -147,19 +147,19 @@ qspi_test_result_t qspi_flash_test(void)
     for (i = 0; i < QSPI_TEST_SIZE; i++) {
         if (g_qspi_read_buf[i] != 0xFF) {
             if (fail_count < 8) {
-                printf("  [WARN] byte[%d]=0x%02X (expected 0xFF)\r\n", (int)i, g_qspi_read_buf[i]);
+                DBG_LOG("  [WARN] byte[%d]=0x%02X (expected 0xFF)\r\n", (int)i, g_qspi_read_buf[i]);
             }
             fail_count++;
         }
     }
     if (fail_count == 0) {
-        printf("  [OK]  All %d bytes are 0xFF (erased).\r\n", QSPI_TEST_SIZE);
+        DBG_LOG("  [OK]  All %d bytes are 0xFF (erased).\r\n", QSPI_TEST_SIZE);
     } else {
-        printf("  [WARN] %d/%d bytes are NOT 0xFF\r\n", (int)fail_count, QSPI_TEST_SIZE);
+        DBG_LOG("  [WARN] %d/%d bytes are NOT 0xFF\r\n", (int)fail_count, QSPI_TEST_SIZE);
     }
 
     /* ====== Step 4: 写入测试数据 ====== */
-    printf("\r\n[4/5] Writing test pattern (page by page)...\r\n");
+    DBG_LOG("\r\n[4/5] Writing test pattern (page by page)...\r\n");
 
     /* 填充写缓冲区：递增模式 0x00, 0x01, 0x02, ... */
     for (i = 0; i < QSPI_TEST_SIZE; i++) {
@@ -187,7 +187,7 @@ qspi_test_result_t qspi_flash_test(void)
                                  QSPI_TEST_ADDRESS + written,
                                  chunk);
             if (FSP_SUCCESS != err) {
-                printf("  [ERR] Write page at +%d failed: %d\r\n", (int)written, err);
+                DBG_LOG("  [ERR] Write page at +%d failed: %d\r\n", (int)written, err);
                 R_OSPI_B_Close(&g_ospi0_ctrl);
                 return QSPI_TEST_ERR_WRITE;
             }
@@ -199,16 +199,16 @@ qspi_test_result_t qspi_flash_test(void)
             written += chunk;
         }
     }
-    printf("  [OK]  %d bytes written.\r\n", QSPI_TEST_SIZE);
+    DBG_LOG("  [OK]  %d bytes written.\r\n", QSPI_TEST_SIZE);
 
     /* ====== Step 5: 读回并验证 ====== */
-    printf("\r\n[5/5] Reading back and verifying...\r\n");
+    DBG_LOG("\r\n[5/5] Reading back and verifying...\r\n");
     memset(g_qspi_read_buf, 0x00, QSPI_TEST_SIZE);
 
     err = qspi_direct_read(&g_ospi0_ctrl, (uint32_t)QSPI_TEST_ADDRESS,
                            g_qspi_read_buf, QSPI_TEST_SIZE);
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] DirectTransfer read failed: %d\r\n", err);
+        DBG_LOG("  [ERR] DirectTransfer read failed: %d\r\n", err);
         R_OSPI_B_Close(&g_ospi0_ctrl);
         return QSPI_TEST_ERR_READ;
     }
@@ -217,7 +217,7 @@ qspi_test_result_t qspi_flash_test(void)
     for (i = 0; i < QSPI_TEST_SIZE; i++) {
         if (g_qspi_read_buf[i] != g_qspi_write_buf[i]) {
             if (fail_count < 8) {
-                printf("  [FAIL] byte[%d]: wrote=0x%02X, read=0x%02X\r\n",
+                DBG_LOG("  [FAIL] byte[%d]: wrote=0x%02X, read=0x%02X\r\n",
                        (int)i, g_qspi_write_buf[i], g_qspi_read_buf[i]);
             }
             fail_count++;
@@ -228,14 +228,14 @@ qspi_test_result_t qspi_flash_test(void)
     R_OSPI_B_Close(&g_ospi0_ctrl);
 
     /* ====== 结果 ====== */
-    printf("\r\n========================================\r\n");
+    DBG_LOG("\r\n========================================\r\n");
     if (fail_count == 0) {
-        printf("  RESULT: ALL %d BYTES MATCH - PASS!\r\n", QSPI_TEST_SIZE);
-        printf("========================================\r\n\n");
+        DBG_LOG("  RESULT: ALL %d BYTES MATCH - PASS!\r\n", QSPI_TEST_SIZE);
+        DBG_LOG("========================================\r\n\n");
         return QSPI_TEST_OK;
     } else {
-        printf("  RESULT: %d/%d BYTES MISMATCH - FAIL!\r\n", (int)fail_count, QSPI_TEST_SIZE);
-        printf("========================================\r\n\n");
+        DBG_LOG("  RESULT: %d/%d BYTES MISMATCH - FAIL!\r\n", (int)fail_count, QSPI_TEST_SIZE);
+        DBG_LOG("========================================\r\n\n");
         return QSPI_TEST_ERR_VERIFY;
     }
 }
@@ -245,25 +245,25 @@ qspi_test_result_t qspi_flash_read_test(void)
 {
     fsp_err_t err;
 
-    printf("\r\n");
-    printf("========================================\r\n");
-    printf("  QSPI Flash Read-Only Test\r\n");
-    printf("========================================\r\n");
+    DBG_LOG("\r\n");
+    DBG_LOG("========================================\r\n");
+    DBG_LOG("  QSPI Flash Read-Only Test\r\n");
+    DBG_LOG("========================================\r\n");
 
     /* 打开驱动 */
     err = R_OSPI_B_Open(&g_ospi0_ctrl, &g_ospi0_cfg);
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] R_OSPI_B_Open failed: %d\r\n", err);
+        DBG_LOG("  [ERR] R_OSPI_B_Open failed: %d\r\n", err);
         return QSPI_TEST_ERR_OPEN;
     }
-    printf("  [OK]  Driver opened.\r\n");
+    DBG_LOG("  [OK]  Driver opened.\r\n");
 
     /* 读取前 256 字节 */
     memset(g_qspi_read_buf, 0x00, QSPI_TEST_SIZE);
     err = qspi_direct_read(&g_ospi0_ctrl, (uint32_t)QSPI_TEST_ADDRESS,
                            g_qspi_read_buf, QSPI_TEST_SIZE);
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] DirectTransfer read failed: %d\r\n", err);
+        DBG_LOG("  [ERR] DirectTransfer read failed: %d\r\n", err);
         R_OSPI_B_Close(&g_ospi0_ctrl);
         return QSPI_TEST_ERR_READ;
     }
@@ -272,8 +272,8 @@ qspi_test_result_t qspi_flash_read_test(void)
     qspi_flash_dump((uint32_t)QSPI_TEST_ADDRESS, 128);
 
     R_OSPI_B_Close(&g_ospi0_ctrl);
-    printf("  [OK]  Read test done.\r\n");
-    printf("========================================\r\n\n");
+    DBG_LOG("  [OK]  Read test done.\r\n");
+    DBG_LOG("========================================\r\n\n");
     return QSPI_TEST_OK;
 }
 
@@ -289,7 +289,7 @@ void qspi_flash_dump(uint32_t addr, uint32_t len)
 
     err = R_OSPI_B_Open(&g_ospi0_ctrl, &g_ospi0_cfg);
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] Open for dump failed\r\n");
+        DBG_LOG("  [ERR] Open for dump failed\r\n");
         return;
     }
 
@@ -297,17 +297,17 @@ void qspi_flash_dump(uint32_t addr, uint32_t len)
     err = qspi_direct_read(&g_ospi0_ctrl, addr, dump_buf, len);
 
     if (FSP_SUCCESS != err) {
-        printf("  [ERR] Read for dump failed: %d\r\n", err);
+        DBG_LOG("  [ERR] Read for dump failed: %d\r\n", err);
         R_OSPI_B_Close(&g_ospi0_ctrl);
         return;
     }
 
     for (uint32_t i = 0; i < len; i += 16) {
-        printf("  0x%08X: ", (unsigned int)(addr + i));
+        DBG_LOG("  0x%08X: ", (unsigned int)(addr + i));
         for (uint32_t j = 0; j < 16 && (i + j) < len; j++) {
-            printf("%02X ", dump_buf[i + j]);
+            DBG_LOG("%02X ", dump_buf[i + j]);
         }
-        printf("\r\n");
+        DBG_LOG("\r\n");
     }
 
     R_OSPI_B_Close(&g_ospi0_ctrl);

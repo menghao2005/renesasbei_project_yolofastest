@@ -1,10 +1,11 @@
-/*
+﻿/*
  * ai_center_offset.c
  *
  * 计算「显示区中心 (上半部分中心)」与「框到的水果中心」的 x/y 差值。
  */
 
 #include "ai_center_offset.h"
+#include "Uart9_Debug.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -66,7 +67,7 @@ void ai_center_offset_print(const ai_center_offset_t *p_off)
     const ai_center_offset_t *o = (p_off != NULL) ? p_off : &g_ai_center_offset;
 
     if (!o->valid) {
-        printf("[OFFSET] no detection\r\n");
+        DBG_LOG("[OFFSET] no detection\r\n");
         return;
     }
 
@@ -76,6 +77,6 @@ void ai_center_offset_print(const ai_center_offset_t *p_off)
     }
 
     /* dx>0 右, dy>0 下 */
-    printf("[OFFSET] %s score=%.2f dx=%+.1f dy=%+.1f (box_cx=%.1f box_cy=%.1f)\r\n",
+    DBG_LOG("[OFFSET] %s score=%.2f dx=%+.1f dy=%+.1f (box_cx=%.1f box_cy=%.1f)\r\n",
            name, o->score, o->dx, o->dy, o->box_cx, o->box_cy);
 }

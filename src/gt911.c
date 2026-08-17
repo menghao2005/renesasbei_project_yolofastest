@@ -1,4 +1,4 @@
-/***********************************************************************************************************************
+﻿/***********************************************************************************************************************
  * File Name    : gt911.c
  * Description  : Touch helper used in mipi_dsi_ep.c.
  **********************************************************************************************************************/
@@ -24,6 +24,7 @@
 #include "common_utils.h"
 #include "gt911.h"
 #include "stdio.h"
+#include "Uart9_Debug.h"
 
 /*******************************************************************************************************************//**
  * @addtogroup gt911
@@ -61,7 +62,8 @@ static uint8_t st7123_parse_report(const uint8_t *report, coord_t *points, uint3
  **********************************************************************************************************************/
 fsp_err_t st7123_get_status(uint8_t* status, coord_t * points, uint32_t num_points)
 {
-    uint8_t report[ST7123_REPORT_HEADER_BYTES + (ST7123_POINT_STRIDE_BYTES * ST7123_MAX_TOUCH_POINTS)];
+    uint8_t report[ST7123_REPORT_HEADER_BYTES + (ST7123_POINT_STRIDE_BYTES 
+* ST7123_MAX_TOUCH_POINTS)];
     fsp_err_t err = FSP_SUCCESS;
 
     if ((NULL == status) || (NULL == points))
@@ -138,8 +140,10 @@ fsp_err_t st7123_touch_irq_init(void)
     }
 
     return R_ICU_ExternalIrqEnable(&g_external_irq_ctrl);
-}
-
+}
+
+
+
 /* IIC 控制器复位：触摸连续失败（总线残留/状态机卡死）时调用，Close+Open 重开。
  * IIC0 与 OV5640 共用，但 OV5640 仅在启动时配置，运行中复位安全。 */
 
@@ -165,7 +169,7 @@ void st7123_touch_irq_print_task(void)
         /* 裸读（验证基线）：不重试不 recover干预——ST7123 慢响应/瞬时忙由 100ms I2C 超时兜底；持续失败只降频打印。 */
         if ((++g_st7123_fail_count % 25U) == 1U)
         {
-            printf("ST7123 touch read fail: %d\r\n", (int) err);
+            DBG_LOG("ST7123 touch read fail: %d\r\n", (int) err);
         }
         return;
     }
