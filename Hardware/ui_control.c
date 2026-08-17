@@ -186,6 +186,7 @@ typedef enum e_ui_hit
 static void ui_light_toggle(void);
 static void ui_draw_light_btn(int x, int y, int w, int h);
 static void ui_draw_auto_ctrl_bar(void);
+static void ui_draw_hit_btn(ui_hit_t h, bool pressed);
 
 static ui_mode_t  g_mode  = UI_MODE_AUTO;
 static ui_power_t g_power = UI_POWER_OFF;
@@ -707,24 +708,17 @@ static void ui_draw_remote_panel(void)
     /* ===== 虚拟摇杆（左半屏） ===== */
     ui_draw_joy_area();
 
-    /* ===== 爪子按钮（右半屏）：名称随状态切换 ===== */
-    if (g_gripper_closed)
-    {
-        ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
-                       "松开", 2, (UI_HIT_GRASP == g_touch_last), UI_COLOR_BLUE_D,
-                       UI_COLOR_BLUE, UI_COLOR_BLUE_D, 0xFFFFU);
-    }
-    else
-    {
-        /* 爪子开 → 显示"抓取"（绿色） */
-        ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
-                       "抓取", 2, (UI_HIT_GRASP == g_touch_last), UI_COLOR_GREEN_D,
-                       UI_COLOR_GREEN, UI_COLOR_GREEN_D, 0xFFFFU);
-    }
-    /* ===== 自动抓取按钮（原松开位置） ===== */
+    /* 爪子按钮 */
+    ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
+                   g_gripper_closed ? "\xe6\x9d\xbe\xe5\xbc\x80" : "\xe6\x8a\x93\xe5\x8f\x96",
+                   2, (UI_HIT_GRASP == g_touch_last),
+                   g_gripper_closed ? UI_COLOR_BLUE_D : UI_COLOR_GREEN_D,
+                   g_gripper_closed ? UI_COLOR_BLUE : UI_COLOR_GREEN,
+                   g_gripper_closed ? UI_COLOR_BLUE_D : UI_COLOR_GREEN_D, 0xFFFFU);
+    /* 开始按钮 */
     ui_draw_button(RMT_AUTOGRAB_X, RMT_AUTOGRAB_Y, RMT_AUTOGRAB_W, RMT_AUTOGRAB_H,
-                   "抓取", 2, (UI_HIT_AUTOGRAB == g_touch_last), UI_COLOR_ORANGE,
-                   0xFFFFU, UI_COLOR_ORANGE, 0xFFFFU);
+                   "\xe4\xb8\x8b\xe6\x8a\x93", 2, (UI_HIT_AUTOGRAB == g_touch_last),
+                   UI_COLOR_ORANGE, 0xFFFFU, UI_COLOR_ORANGE, 0xFFFFU);
 
     /* 补光灯按钮（GRASP/OPEN 上方） */
     ui_draw_light_btn(RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H);
@@ -820,6 +814,27 @@ static void ui_light_toggle(void)
                              g_light_on ? BSP_IO_LEVEL_HIGH : BSP_IO_LEVEL_LOW);
 }
 
+/* 爪子按钮（只画自己区域，防全面板闪屏） */
+
+
+/* 绘制指定按钮（pressed=true 高亮）。只处理 REMOTE 右侧三个按钮。 */
+static void ui_draw_hit_btn(ui_hit_t h, bool pressed)
+{
+    if (UI_HIT_LIGHT == h)
+        ui_draw_light_btn(RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H);
+    else if (UI_HIT_GRASP == h)
+        ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
+                       g_gripper_closed ? "\xe6\x9d\xbe\xe5\xbc\x80" : "\xe6\x8a\x93\xe5\x8f\x96",
+                       2, pressed,
+                       g_gripper_closed ? UI_COLOR_BLUE_D : UI_COLOR_GREEN_D,
+                       g_gripper_closed ? UI_COLOR_BLUE : UI_COLOR_GREEN,
+                       g_gripper_closed ? UI_COLOR_BLUE_D : UI_COLOR_GREEN_D, 0xFFFFU);
+    else if (UI_HIT_AUTOGRAB == h)
+        ui_draw_button(RMT_AUTOGRAB_X, RMT_AUTOGRAB_Y, RMT_AUTOGRAB_W, RMT_AUTOGRAB_H,
+                       "\xe4\xb8\x8b\xe6\x8a\x93", 2, pressed,
+                       UI_COLOR_ORANGE, 0xFFFFU, UI_COLOR_ORANGE, 0xFFFFU);
+}
+
 /* 补光灯按钮（亮=橙色，灭=灰色） */
 static void ui_draw_light_btn(int x, int y, int w, int h)
 {
@@ -901,7 +916,22 @@ static void ui_toggle_power(void)
             break;
     }
 
-    ui_redraw_screen();
+    if (UI_MODE_REMOTE == g_mode)
+    {
+        /* REMOTE：只重绘 LOCK 按钮 + 状态徽章（小区域，不闪） */
+        ui_draw_button(RMT_LOCK_X, RMT_LOCK_Y, RMT_LOCK_W, RMT_LOCK_H,
+                       ui_power_label(g_power), 2, false, UI_COLOR_RED_D,
+                       UI_COLOR_RED, UI_COLOR_RED_D, 0xFFFFU);
+        ui_draw_panel(RMT_STATE_X, RMT_STATE_Y - 4, RMT_STATE_W, RMT_STATE_H + 8,
+                      UI_COLOR_CARD, UI_COLOR_BORDER);
+        ui_draw_string_centered(RMT_STATE_X + RMT_STATE_W / 2, RMT_STATE_Y + 12,
+                                ui_state_label(g_power), ui_power_color(g_power), 2);
+        __DSB();
+    }
+    else
+    {
+        ui_redraw_screen();
+    }
 }
 
 static void ui_toggle_mode(void)
@@ -1136,7 +1166,6 @@ void ui_control_service(void)
             {
                 case UI_AG_DESCEND:
                     g_autograb_state = UI_AG_CLOSE;
-                    /* 闭合爪子 */
                     RobotArm_MoveToWristDownTime(g_remote_base, 1050U, 2100U,
                                                  1350U, 500U);
                     g_gripper_closed = true;
@@ -1144,7 +1173,6 @@ void ui_control_service(void)
 
                 case UI_AG_CLOSE:
                     g_autograb_state = UI_AG_IDLE;
-                    /* 缩回 home（保持爪子闭合） */
                     RobotArm_MoveToWristDownTime(UI_REMOTE_HOME_BASE,
                                                  UI_REMOTE_HOME_UPPER,
                                                  UI_REMOTE_HOME_FOREARM,
@@ -1158,20 +1186,27 @@ void ui_control_service(void)
                     g_autograb_state = UI_AG_IDLE;
                     break;
             }
+            ui_draw_hit_btn(UI_HIT_GRASP, false);
+            __DSB();
         }
-        /* 自动抓取过程中刷新按钮显示 */
-        ui_draw_remote_panel();
-        __DSB();
     }
 
-    /* 触摸状态变化时刷新按钮高亮（两个界面的按钮都在 blit 区外，
-     * 按下/释放瞬间重画一次；按住期间不重绘 -> 不频闪） */
+    /* 触摸状态变化时只重绘变化的按钮区域（不重绘整个面板，防闪屏） */
     if (hit != g_touch_last)
     {
+        ui_hit_t old_hit = g_touch_last;
         g_touch_last = hit;
         if (UI_MODE_REMOTE == g_mode)
         {
-            ui_draw_remote_panel();
+            ui_draw_hit_btn(old_hit, false);
+            ui_draw_hit_btn(hit, true);
+            /* 摇杆松开：归位到中心并重绘 */
+            if (UI_HIT_JOY == old_hit)
+            {
+                g_joy_x = RMT_JOY_CX;
+                g_joy_y = RMT_JOY_CY;
+                ui_draw_joy_area();
+            }
         }
         else
         {
