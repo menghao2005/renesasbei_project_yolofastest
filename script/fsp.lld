@@ -3,4 +3,29 @@
 */
 
 INCLUDE memory_regions.lld
+
+/* Non-Secure flash region for read-only data overflow (RA8P1 TrustZone).
+ * Physical NS flash at 0x02098000+, accessed via NS alias 0x12098000+.
+ * SAU Region 1 (0x10000000~0x1FFFFFFF) configured as NS by BSP startup.
+ * Secure code accesses via NS_ALIAS macro (adds 0x10000000 offset). */
+FLASH_NS_START  = 0x02098000;
+FLASH_NS_LENGTH = 0x00068000;  /* 416 KB */
+
+MEMORY
+{
+    FLASH_NS (rx) : ORIGIN = FLASH_NS_START, LENGTH = FLASH_NS_LENGTH
+}
+
 INCLUDE fsp_gen.lld
+
+/* Non-Secure rodata section — placed in physical NS flash.
+ * VMA = LMA = 0x02098000+ (no AT needed). */
+SECTIONS
+{
+    .ns_rodata :
+    {
+        KEEP(*(.ns_rodata))
+        KEEP(*(.ns_rodata.*))
+    } > FLASH_NS
+}
+ASSERT(__ddsc_FLASH_END <= 0x02098000, "Secure flash overflow: firmware exceeds Secure region (606KB)");

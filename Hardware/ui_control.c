@@ -635,7 +635,7 @@ static void ui_draw_remote_logo(void)
             for (int x = 0; x < dw; x++)
             {
                 int sx = (x * 5) / 4;
-                uint16_t c = g_renesas_logo_pixels[sy * RENESAS_LOGO_WIDTH + sx];
+                uint16_t c = NS_ALIAS(g_renesas_logo_pixels)[sy * RENESAS_LOGO_WIDTH + sx];
                 if (RENESAS_LOGO_TRANSPARENT_RGB565 != c)
                 {
                     fb[(y + dst_y) * stride + (x + dst_x)] = c;
@@ -655,7 +655,7 @@ static void ui_draw_remote_logo(void)
             for (int x = 0; x < dw; x++)
             {
                 int sx = (x * 5) / 4;
-                uint16_t c = g_bottom_logo_pixels[sy * BOTTOM_LOGO_WIDTH + sx];
+                uint16_t c = NS_ALIAS(g_bottom_logo_pixels)[sy * BOTTOM_LOGO_WIDTH + sx];
                 if (BOTTOM_LOGO_TRANSPARENT_RGB565 != c)
                 {
                     fb[(y + dst_y) * stride + (x + dst_x)] = c;

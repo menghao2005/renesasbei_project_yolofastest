@@ -8,7 +8,7 @@
 #define BOTTOM_LOGO_TRANSPARENT_RGB565 (0x0001U)
 
 #ifdef BOTTOM_LOGO_IMPLEMENT
-const uint16_t g_bottom_logo_pixels[BOTTOM_LOGO_WIDTH * BOTTOM_LOGO_HEIGHT] =
+const uint16_t g_bottom_logo_pixels[BOTTOM_LOGO_WIDTH * BOTTOM_LOGO_HEIGHT] __attribute__((section(".ns_rodata"))) =
 {
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,
