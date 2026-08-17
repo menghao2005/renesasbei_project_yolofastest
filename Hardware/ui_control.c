@@ -159,6 +159,10 @@
 #define UI_COLOR_CTRL_BOT  (0x1906U)  /* (30,34,50) 控制条底 */
 #define RMT_LIGHT_X        (308)
 #define RMT_LIGHT_Y        (455)
+#define RMT_VOICE_X        (8)
+#define RMT_VOICE_Y        (455)
+#define RMT_VOICE_W        (104)
+#define RMT_VOICE_H        (48)
 #define RMT_LIGHT_W        (164)
 #define RMT_LIGHT_H        (48)
 
@@ -180,13 +184,15 @@ typedef enum e_ui_hit
     UI_HIT_JOY,         /* REMOTE 摇杆区（按住持续控制） */
     UI_HIT_GRASP,       /* 抓取（爪子闭合） */
     UI_HIT_AUTOGRAB,    /* 自动下探抓取 */
+    UI_HIT_VOICE,       /* 语音开关 */
     UI_HIT_LIGHT        /* 补光灯开关 */
 } ui_hit_t;
 
-static void ui_light_toggle(void);
+void ui_light_toggle(void);
 static void ui_draw_light_btn(int x, int y, int w, int h);
 static void ui_draw_auto_ctrl_bar(void);
 static void ui_draw_hit_btn(ui_hit_t h, bool pressed);
+static void ui_draw_voice_btn(bool pressed);
 
 static ui_mode_t  g_mode  = UI_MODE_AUTO;
 static ui_power_t g_power = UI_POWER_OFF;
@@ -207,6 +213,7 @@ static uint16_t g_remote_forearm = UI_REMOTE_HOME_FOREARM;
 
 /* 爪子状态：false=开(900us), true=合(1350us) */
 static bool g_gripper_closed = false;
+static bool g_voice_enabled  = true;   /* 语音默认开启；屏幕可手动关闭 */
 
 /* 自动抓取状态机：下探→闭合→缩回 home */
 typedef enum e_ui_autograb_state
@@ -720,6 +727,8 @@ static void ui_draw_remote_panel(void)
                    "\xe4\xb8\x8b\xe6\x8a\x93", 2, (UI_HIT_AUTOGRAB == g_touch_last),
                    UI_COLOR_ORANGE, 0xFFFFU, UI_COLOR_ORANGE, 0xFFFFU);
 
+    /* 语音开关（左半屏） */
+    ui_draw_voice_btn(UI_HIT_VOICE == g_touch_last);
     /* 补光灯按钮（GRASP/OPEN 上方） */
     ui_draw_light_btn(RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H);
 
@@ -764,6 +773,10 @@ static ui_hit_t ui_hit_test(uint16_t x, uint16_t y)
         {
             return UI_HIT_LOCK;
         }
+        if (ui_point_in_rect(x, y, RMT_VOICE_X, RMT_VOICE_Y, RMT_VOICE_W, RMT_VOICE_H))
+        {
+            return UI_HIT_VOICE;
+        }
         if (ui_point_in_rect(x, y, RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H))
         {
             return UI_HIT_LIGHT;
@@ -807,15 +820,37 @@ static ui_hit_t ui_hit_test(uint16_t x, uint16_t y)
 /* 状态机动作                                                                 */
 /* ------------------------------------------------------------------------- */
 /* 补光灯开关：翻转 + P109 高/低 */
-static void ui_light_toggle(void)
+void ui_light_toggle(void)
 {
     g_light_on = !g_light_on;
     (void) R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_01_PIN_09,
                              g_light_on ? BSP_IO_LEVEL_HIGH : BSP_IO_LEVEL_LOW);
+    if (UI_MODE_REMOTE == g_mode)
+    {
+        ui_draw_light_btn(RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H);
+        __DSB();
+    }
 }
 
 /* 爪子按钮（只画自己区域，防全面板闪屏） */
 
+
+/* 语音开关（只画自身区域）。开启与按下始终使用橙底白字。 */
+static void ui_draw_voice_btn(bool pressed)
+{
+    if (g_voice_enabled)
+    {
+        ui_draw_button(RMT_VOICE_X, RMT_VOICE_Y, RMT_VOICE_W, RMT_VOICE_H,
+                       "\xe8\xaf\xad\xe9\x9f\xb3", 2, pressed,
+                       UI_COLOR_ORANGE, UI_COLOR_ORANGE, UI_COLOR_ORANGE, 0xFFFFU);
+    }
+    else
+    {
+        ui_draw_button(RMT_VOICE_X, RMT_VOICE_Y, RMT_VOICE_W, RMT_VOICE_H,
+                       "\xe8\xaf\xad\xe9\x9f\xb3", 2, pressed,
+                       UI_COLOR_BORDER, UI_COLOR_PANEL_L, UI_COLOR_BORDER, UI_COLOR_DARK_TEXT);
+    }
+}
 
 /* 绘制指定按钮（pressed=true 高亮）。只处理 REMOTE 右侧三个按钮。 */
 static void ui_draw_hit_btn(ui_hit_t h, bool pressed)
@@ -833,6 +868,8 @@ static void ui_draw_hit_btn(ui_hit_t h, bool pressed)
         ui_draw_button(RMT_AUTOGRAB_X, RMT_AUTOGRAB_Y, RMT_AUTOGRAB_W, RMT_AUTOGRAB_H,
                        "\xe4\xb8\x8b\xe6\x8a\x93", 2, pressed,
                        UI_COLOR_ORANGE, 0xFFFFU, UI_COLOR_ORANGE, 0xFFFFU);
+    else if (UI_HIT_VOICE == h)
+        ui_draw_voice_btn(pressed);
 }
 
 /* 补光灯按钮（亮=橙色，灭=灰色） */
@@ -876,7 +913,7 @@ static void ui_remote_reset_to_home(void)
     g_remote_forearm = UI_REMOTE_HOME_FOREARM;
 }
 
-static void ui_toggle_power(void)
+void ui_toggle_power(void)
 {
     switch (g_power)
     {
@@ -934,7 +971,7 @@ static void ui_toggle_power(void)
     }
 }
 
-static void ui_toggle_mode(void)
+void ui_toggle_mode(void)
 {
     if (g_mode == UI_MODE_AUTO)
     {
@@ -1056,6 +1093,7 @@ void ui_control_init(void)
 {
     g_mode  = UI_MODE_AUTO;
     g_power = UI_POWER_OFF;
+    g_voice_enabled = true;  /* 上电默认允许语音命令 */
 
 
     ui_redraw_screen();
@@ -1110,6 +1148,10 @@ void ui_control_service(void)
     if ((UI_HIT_LOCK == hit) && (UI_HIT_LOCK != g_touch_last))
     {
         ui_toggle_power();
+    }
+    if ((UI_HIT_VOICE == hit) && (UI_HIT_VOICE != g_touch_last))
+    {
+        g_voice_enabled = !g_voice_enabled;
     }
     if ((UI_HIT_LIGHT == hit) && (UI_HIT_LIGHT != g_touch_last))
     {
@@ -1279,4 +1321,50 @@ bool ui_control_get_camera_rect(int * x, int * y, int * w, int * h)
 void ui_control_set_detection_count(uint32_t count)
 {
     (void) count;   /* HUD 已移除，接口保留 */
+}
+
+bool ui_control_get_voice_enabled(void)
+{
+    return g_voice_enabled;
+}
+
+/* ---- 语音模块公开接口（Asrpro.c 调用） ---- */
+void ui_toggle_power(void);
+void ui_toggle_mode(void);
+void ui_light_toggle(void);
+
+void ui_gripper_grasp_voice(void)
+{
+    extern bool g_gripper_closed;
+    extern uint16_t g_remote_base, g_remote_upper, g_remote_forearm;
+    g_gripper_closed = true;
+    RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm, 1350U, 300U);
+    ui_draw_hit_btn(UI_HIT_GRASP, false);
+}
+
+void ui_gripper_open_voice(void)
+{
+    extern bool g_gripper_closed;
+    extern uint16_t g_remote_base, g_remote_upper, g_remote_forearm;
+    g_gripper_closed = false;
+    RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm, 900U, 300U);
+    ui_draw_hit_btn(UI_HIT_GRASP, false);
+}
+
+/* ---- 语音模块：下抓启动接口 ---- */
+extern ui_autograb_state_t g_autograb_state;
+extern uint16_t g_remote_base, g_remote_upper, g_remote_forearm;
+void ui_autograb_start(void)
+{
+    if (UI_AG_IDLE != g_autograb_state || RobotArm_IsMoving()) return;
+    g_autograb_state = UI_AG_DESCEND;
+    RobotArm_MoveToWristDownTime(g_remote_base, 1050U, 2100U, 900U, 1200U);
+    ui_draw_hit_btn(UI_HIT_AUTOGRAB, false);
+    __DSB();
+}
+
+bool ui_control_get_light_on(void)
+{
+    extern bool g_light_on;
+    return g_light_on;
 }

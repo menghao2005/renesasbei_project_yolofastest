@@ -52,4 +52,14 @@ void       ui_control_draw_boot_text(const char * msg);      /* 上电初始化�
  * 返回 true 表示当前是 AUTO 界面（hal_entry 据此决定是否画检测框）。 */
 bool ui_control_get_camera_rect(int * x, int * y, int * w, int * h);
 
+/* 语音模块接口 */
+bool ui_control_get_voice_enabled(void);
+bool ui_control_get_light_on(void);
+void ui_autograb_start(void);
+void ui_toggle_power(void);
+void ui_toggle_mode(void);
+void ui_light_toggle(void);
+void ui_gripper_grasp_voice(void);
+void ui_gripper_open_voice(void);
+
 #endif /* UI_CONTROL_H_ */

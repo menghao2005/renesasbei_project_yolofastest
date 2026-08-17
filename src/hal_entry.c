@@ -18,6 +18,7 @@
 #include "bottom_banner.h"
 #include "harvest_task.h"
 #include "ui_control.h"
+#include "Asrpro.h"
 
 #if (1 == BSP_MULTICORE_PROJECT) && BSP_TZ_SECURE_BUILD
 bsp_ipc_semaphore_handle_t g_core_start_semaphore =
@@ -174,6 +175,7 @@ void hal_entry(void)
     mipi_dsi_entry();
     st7123_touch_irq_init();
     ui_control_init(); // 手绘双界面 UI：品牌条 + banner + MODE/START 按钮
+    ASRPRO_Init();     // 语音模块初始化
     __DSB();
 
     R_IIC_MASTER_Open(&g_i2c_master0_ctrl, &g_i2c_master0_cfg); // I2C for camera and touch panel.
@@ -265,6 +267,7 @@ void hal_entry(void)
            * 不受相机 8fps 限制——遥控操作流畅跟手 */
           st7123_touch_irq_print_task();
           ui_control_service();
+          ASRPRO_Process();  /* 语音命令处理 */
 
           /* 非阻塞轮询相机帧完成（CEU 回调置 g_capture_ready） */
           if (g_capture_ready)
