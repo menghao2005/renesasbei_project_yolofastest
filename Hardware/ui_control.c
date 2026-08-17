@@ -91,10 +91,11 @@
 #define RMT_GRASP_Y         (540)
 #define RMT_GRASP_W         (164)
 #define RMT_GRASP_H         (64)
-#define RMT_OPEN_X          (308)
-#define RMT_OPEN_Y          (636)
-#define RMT_OPEN_W          (164)
-#define RMT_OPEN_H          (64)
+/* 自动抓取按钮（原 OPEN 位置）：一键下探→闭合→缩回 */
+#define RMT_AUTOGRAB_X      (308)
+#define RMT_AUTOGRAB_Y      (636)
+#define RMT_AUTOGRAB_W      (164)
+#define RMT_AUTOGRAB_H      (64)
 
 #define RMT_HUD_X           (14)
 #define RMT_HUD_Y           (12)
@@ -178,7 +179,7 @@ typedef enum e_ui_hit
     UI_HIT_LOCK,        /* REMOTE 右上 */
     UI_HIT_JOY,         /* REMOTE 摇杆区（按住持续控制） */
     UI_HIT_GRASP,       /* 抓取（爪子闭合） */
-    UI_HIT_OPEN,        /* 打开爪子 */
+    UI_HIT_AUTOGRAB,    /* 自动下探抓取 */
     UI_HIT_LIGHT        /* 补光灯开关 */
 } ui_hit_t;
 
@@ -202,6 +203,18 @@ static int g_joy_y = RMT_JOY_CY;
 static uint16_t g_remote_base    = UI_REMOTE_HOME_BASE;
 static uint16_t g_remote_upper   = UI_REMOTE_HOME_UPPER;
 static uint16_t g_remote_forearm = UI_REMOTE_HOME_FOREARM;
+
+/* 爪子状态：false=开(900us), true=合(1350us) */
+static bool g_gripper_closed = false;
+
+/* 自动抓取状态机：下探→闭合→缩回 home */
+typedef enum e_ui_autograb_state
+{
+    UI_AG_IDLE = 0,
+    UI_AG_DESCEND,    /* 下探到低位 */
+    UI_AG_CLOSE,      /* 闭合爪子 */
+} ui_autograb_state_t;
+static ui_autograb_state_t g_autograb_state = UI_AG_IDLE;
 
 /* ------------------------------------------------------------------------- */
 /* 底层绘制                                                                   */
@@ -692,21 +705,26 @@ static void ui_draw_remote_panel(void)
                    UI_COLOR_RED, UI_COLOR_RED_D, 0xFFFFU);
 
     /* ===== 虚拟摇杆（左半屏） ===== */
-    /* 标签（固定不动，摇杆区重绘不覆盖） */
-    ui_draw_string_centered(RMT_JOY_CX, RMT_JOY_CY - RMT_JOY_R - 16,
-                            "摇杆", UI_COLOR_GRAY, 2);
-
     ui_draw_joy_area();
 
-    /* ===== 抓取 / 打开爪子（右半屏） ===== */
-    ui_draw_string_centered(RMT_GRASP_X + RMT_GRASP_W / 2, RMT_GRASP_Y - 18,
-                            "GRIPPER", UI_COLOR_GRAY, 2);
-    ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
-                   "抓取", 2, (UI_HIT_GRASP == g_touch_last), UI_COLOR_GREEN_D,
-                   UI_COLOR_GREEN, UI_COLOR_GREEN_D, 0xFFFFU);
-    ui_draw_button(RMT_OPEN_X, RMT_OPEN_Y, RMT_OPEN_W, RMT_OPEN_H,
-                   "松开", 2, (UI_HIT_OPEN == g_touch_last), UI_COLOR_BLUE_D,
-                   UI_COLOR_BLUE, UI_COLOR_BLUE_D, 0xFFFFU);
+    /* ===== 爪子按钮（右半屏）：名称随状态切换 ===== */
+    if (g_gripper_closed)
+    {
+        ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
+                       "松开", 2, (UI_HIT_GRASP == g_touch_last), UI_COLOR_BLUE_D,
+                       UI_COLOR_BLUE, UI_COLOR_BLUE_D, 0xFFFFU);
+    }
+    else
+    {
+        /* 爪子开 → 显示"抓取"（绿色） */
+        ui_draw_button(RMT_GRASP_X, RMT_GRASP_Y, RMT_GRASP_W, RMT_GRASP_H,
+                       "抓取", 2, (UI_HIT_GRASP == g_touch_last), UI_COLOR_GREEN_D,
+                       UI_COLOR_GREEN, UI_COLOR_GREEN_D, 0xFFFFU);
+    }
+    /* ===== 自动抓取按钮（原松开位置） ===== */
+    ui_draw_button(RMT_AUTOGRAB_X, RMT_AUTOGRAB_Y, RMT_AUTOGRAB_W, RMT_AUTOGRAB_H,
+                   "抓取", 2, (UI_HIT_AUTOGRAB == g_touch_last), UI_COLOR_ORANGE,
+                   0xFFFFU, UI_COLOR_ORANGE, 0xFFFFU);
 
     /* 补光灯按钮（GRASP/OPEN 上方） */
     ui_draw_light_btn(RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H);
@@ -761,9 +779,9 @@ static ui_hit_t ui_hit_test(uint16_t x, uint16_t y)
         {
             return UI_HIT_GRASP;
         }
-        if (ui_point_in_rect(x, y, RMT_OPEN_X, RMT_OPEN_Y, RMT_OPEN_W, RMT_OPEN_H))
+        if (ui_point_in_rect(x, y, RMT_AUTOGRAB_X, RMT_AUTOGRAB_Y, RMT_AUTOGRAB_W, RMT_AUTOGRAB_H))
         {
-            return UI_HIT_OPEN;
+            return UI_HIT_AUTOGRAB;
         }
         /* 摇杆圆内 */
         int dx = (int) x - RMT_JOY_CX;
@@ -1000,19 +1018,6 @@ static void ui_joy_apply(void)
                                  UI_REMOTE_GRIPPER_US, UI_REMOTE_MOVE_MS);
 }
 
-/* 抓取：爪子闭合（gripper 1350us，同自动流程的抓取力度） */
-static void ui_gripper_grasp(void)
-{
-    RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                 1350U, 300U);
-}
-
-/* 打开爪子（gripper 900us，开角再调小） */
-static void ui_gripper_open(void)
-{
-    RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                 900U, 300U);
-}
 
 /* ------------------------------------------------------------------------- */
 /* 对外接口                                                                   */
@@ -1105,14 +1110,58 @@ void ui_control_service(void)
         }
     }
 
-    /* 抓取 / 打开爪子（边沿触发，任意电源状态可用） */
+    /* 爪子切换（边沿触发，任意电源状态可用） */
     if ((UI_HIT_GRASP == hit) && (UI_HIT_GRASP != g_touch_last))
     {
-        ui_gripper_grasp();
+        g_gripper_closed = !g_gripper_closed;
+        RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
+                                     g_gripper_closed ? 1350U : 900U, 300U);
     }
-    if ((UI_HIT_OPEN == hit) && (UI_HIT_OPEN != g_touch_last))
+    /* 自动抓取（边沿触发，仅在 IDLE 且非移动中启动） */
+    if ((UI_HIT_AUTOGRAB == hit) && (UI_HIT_AUTOGRAB != g_touch_last)
+        && (UI_AG_IDLE == g_autograb_state) && !RobotArm_IsMoving())
     {
-        ui_gripper_open();
+        g_autograb_state = UI_AG_DESCEND;
+        /* 下探：upper 降到 1050，forearm 2100，爪子张开 */
+        RobotArm_MoveToWristDownTime(g_remote_base, 1050U, 2100U,
+                                     900U, 1200U);
+    }
+
+    /* 自动抓取状态机轮询 */
+    if (UI_AG_IDLE != g_autograb_state)
+    {
+        if (!RobotArm_IsMoving())
+        {
+            switch (g_autograb_state)
+            {
+                case UI_AG_DESCEND:
+                    g_autograb_state = UI_AG_CLOSE;
+                    /* 闭合爪子 */
+                    RobotArm_MoveToWristDownTime(g_remote_base, 1050U, 2100U,
+                                                 1350U, 500U);
+                    g_gripper_closed = true;
+                    break;
+
+                case UI_AG_CLOSE:
+                    g_autograb_state = UI_AG_IDLE;
+                    /* 缩回 home（保持爪子闭合） */
+                    RobotArm_MoveToWristDownTime(UI_REMOTE_HOME_BASE,
+                                                 UI_REMOTE_HOME_UPPER,
+                                                 UI_REMOTE_HOME_FOREARM,
+                                                 1350U, 1200U);
+                    g_remote_base    = UI_REMOTE_HOME_BASE;
+                    g_remote_upper   = UI_REMOTE_HOME_UPPER;
+                    g_remote_forearm = UI_REMOTE_HOME_FOREARM;
+                    break;
+
+                default:
+                    g_autograb_state = UI_AG_IDLE;
+                    break;
+            }
+        }
+        /* 自动抓取过程中刷新按钮显示 */
+        ui_draw_remote_panel();
+        __DSB();
     }
 
     /* 触摸状态变化时刷新按钮高亮（两个界面的按钮都在 blit 区外，
