@@ -8,7 +8,7 @@
 #define RENESAS_LOGO_TRANSPARENT_RGB565 (0x0001U)
 
 #ifdef RENESAS_LOGO_IMPLEMENT
-const uint16_t g_renesas_logo_pixels[RENESAS_LOGO_WIDTH * RENESAS_LOGO_HEIGHT] __attribute__((section(".ns_rodata"))) =
+const uint16_t g_renesas_logo_pixels[RENESAS_LOGO_WIDTH * RENESAS_LOGO_HEIGHT] =
 {
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,

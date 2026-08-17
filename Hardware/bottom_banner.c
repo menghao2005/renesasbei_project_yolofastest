@@ -141,7 +141,7 @@ void bottom_banner_draw(uint16_t *fb, uint32_t stride)
     fb_draw_image_rgb565(fb, stride,
                          8,
                          (int) bottom_top + 6,
-                         NS_ALIAS(g_renesas_logo_pixels),
+                         g_renesas_logo_pixels,
                          RENESAS_LOGO_WIDTH,
                          RENESAS_LOGO_HEIGHT,
                          RENESAS_LOGO_TRANSPARENT_RGB565);
@@ -151,7 +151,7 @@ void bottom_banner_draw(uint16_t *fb, uint32_t stride)
     fb_draw_image_rgb565(fb, stride,
                          logo_x,
                          logo_y,
-                         NS_ALIAS(g_bottom_logo_pixels),
+                         g_bottom_logo_pixels,
                          BOTTOM_LOGO_WIDTH,
                          BOTTOM_LOGO_HEIGHT,
                          BOTTOM_LOGO_TRANSPARENT_RGB565);
