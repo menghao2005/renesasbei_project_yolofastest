@@ -237,14 +237,16 @@ void ov5640_config_dvp_vga_rgb565_15fps(void)
         {0x4740, 0x21},
     };
 
-    for (uint32_t i = 0; i < (sizeof(regs) / sizeof(regs[0])); i++)
+    uint32_t total = (uint32_t)(sizeof(regs) / sizeof(regs[0]));
+    for (uint32_t i = 0; i < total; i++)
     {
         ov5640_write_reg(regs[i].reg, regs[i].dat);
+        ov5640_spin_tick(i, total);   /* 时间匀速刷新，避免这段空白停顿 */
     }
 
     g_out_width = 640U;
     g_out_height = 480U;
-    delay_ms(50);
+    for (int sp = 0; sp < 2; sp++) { ov5640_spin_tick(0U, 1U); delay_ms(25); }
 }
 
 static void ov5640_get_isp_input_size(void)
@@ -501,9 +503,11 @@ uint8_t ov5640_auto_focus_init(void)
     
     ov5640_write_reg(0x3000, 0x20);
     
+    uint32_t af_total = (uint32_t)sizeof(ov5640_auto_focus_firmware);
     for (addr_index=OV5640_FW_DOWNLOAD_ADDR, fw_index=0; fw_index<sizeof(ov5640_auto_focus_firmware);addr_index++, fw_index++)
     {
         ov5640_write_reg(addr_index, ov5640_auto_focus_firmware[fw_index]);
+        ov5640_spin_tick(fw_index, af_total);   /* 时间匀速刷新 */
     }
     
     ov5640_write_reg(0x3022, 0x00);
@@ -518,6 +522,7 @@ uint8_t ov5640_auto_focus_init(void)
     
     while ((reg3029 != 0x70) && (timeout < OV5640_TIMEOUT))
     {
+        ov5640_spin_tick(timeout, OV5640_TIMEOUT);   /* 5s 等待期间匀速刷新 */
         delay_ms(1);
         reg3029 = ov5640_read_reg(0x3029);
         timeout++;
