@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <raConfiguration version="12">
   <generalSettings>
     <option key="#Board#" value="board.ra8p1_cpkhmi"/>
@@ -940,7 +940,7 @@
       <property id="module.driver.external_irq.filter_source" value="module.driver.external_irq.filter_source.pclk"/>
       <property id="module.driver.external_irq.clock_source_div" value="module.driver.external_irq.clock_source_div.clock_source_div_by_64"/>
       <property id="module.driver.external_irq.p_callback" value="external_irq_callback"/>
-      <property id="module.driver.external_irq.ipl" value="board.icu.common.irq.priority12"/>
+      <property id="module.driver.external_irq.ipl" value="board.icu.common.irq.priority9"/>
     </module>
     <module id="module.driver.external_irq_on_icu.951690494">
       <property id="module.driver.external_irq.name" value="g_external_irq_VSYNC"/>
@@ -1325,7 +1325,7 @@
       <property id="module.driver.uart.clk_src" value="module.driver.uart.clk_src.int_clk"/>
       <property id="module.driver.uart.rx_edge_start" value="module.driver.uart.rx_edge_start.falling_edge"/>
       <property id="module.driver.uart.noisecancel_en" value="module.driver.uart.noisecancel_en.disabled"/>
-      <property id="module.driver.uart.rx_fifo_trigger" value="module.driver.uart.rx_fifo_trigger.1"/>
+      <property id="module.driver.uart.rx_fifo_trigger" value="module.driver.uart.rx_fifo_trigger.max"/>
       <property id="module.driver.uart.rs485.de_enable" value="module.driver.uart.rs485.de_enable.disabled"/>
       <property id="module.driver.uart.rs485.de_polarity" value="module.driver.uart.rs485.de_polarity.high"/>
       <property id="module.driver.uart.rs485.de_assertion_time" value="1"/>
@@ -1981,7 +1981,6 @@
       <configSetting altId="p412.irq.irq20_dash_ds" configurationId="p412"/>
       <configSetting altId="p412.gpio_irq.gpio_irq_enabled" configurationId="p412.gpio_irq"/>
       <configSetting altId="p412.gpio_mode.gpio_mode_irq" configurationId="p412.gpio_mode"/>
-      <configSetting altId="p412.gpio_pupd.gpio_pupd_ip_up" configurationId="p412.gpio_pupd"/>
       <configSetting altId="p414.ceu.vio_clk" configurationId="p414"/>
       <configSetting altId="p414.gpio_mode.gpio_mode_peripheral" configurationId="p414.gpio_mode"/>
       <configSetting altId="p415.ceu.vio_hd" configurationId="p415"/>

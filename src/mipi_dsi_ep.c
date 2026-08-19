@@ -381,7 +381,7 @@ void handle_error (fsp_err_t err,  const char * err_str)
     }
 }
 
-static inline void R_IOPORT_PinToggle(ioport_ctrl_t * p_ctrl, bsp_io_port_pin_t pin)
+void R_IOPORT_PinToggle(ioport_ctrl_t * p_ctrl, bsp_io_port_pin_t pin)
 {
     bsp_io_level_t level;
 
@@ -400,7 +400,7 @@ void glcdc_callback (display_callback_args_t * p_args)
     {
         g_vsync_flag = SET_FLAG;
 
-        R_IOPORT_PinToggle(&g_ioport_ctrl, BSP_IO_PORT_01_PIN_10);
+//        R_IOPORT_PinToggle(&g_ioport_ctrl, BSP_IO_PORT_01_PIN_10);
     }
     else if (DISPLAY_EVENT_GR1_UNDERFLOW == p_args->event)
     {
@@ -528,7 +528,7 @@ void mipi_dsi_entry(void)
 
     /* Initialize buffer pointers */
     /* Enable external interrupt */
-    R_ICU_ExternalIrqEnable(&g_external_irq_ctrl);//9. 使能外部中断（如触摸中断）
+//    R_ICU_ExternalIrqEnable(&g_external_irq_ctrl);//9. 使能外部中断（如触摸中断）
     /* Handle error */
 
      g_vsync_flag = RESET_FLAG;

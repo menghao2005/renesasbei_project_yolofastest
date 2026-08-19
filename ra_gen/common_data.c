@@ -64,7 +64,7 @@ const external_irq_cfg_t g_external_irq_cfg =
   .p_context = (void*) &NULL,
 #endif
   .p_extend = (void*) &g_external_irq_ext_cfg,
-  .ipl = (12),
+  .ipl = (9),
 #if defined(VECTOR_NUMBER_ICU_IRQ20)
     .irq                 = VECTOR_NUMBER_ICU_IRQ20,
 #else

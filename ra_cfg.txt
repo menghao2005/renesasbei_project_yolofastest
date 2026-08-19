@@ -2544,7 +2544,7 @@ FSP Configuration
       Filter Source: PCLK filter
       Digital Filtering Sample Clock (Only valid when Digital Filtering is Enabled): PCLK / 64
       Callback: external_irq_callback
-      Pin Interrupt Priority: Priority 12
+      Pin Interrupt Priority: Priority 9
       
     Instance "g_external_irq_VSYNC External IRQ (r_icu)"
       Name: g_external_irq_VSYNC

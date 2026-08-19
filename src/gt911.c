@@ -22,6 +22,8 @@
  ***********************************************************************************************************************/
 #include "hal_data.h"
 #include "common_utils.h"
+#include "camera_i2c_api.h"
+#include "mipi_dsi_ep.h"
 #include "gt911.h"
 #include "stdio.h"
 #include "Uart9_Debug.h"
@@ -52,6 +54,8 @@ volatile uint16_t g_st7123_touch_y = 0U;
 
 static fsp_err_t st7123_i2c_read(uint16_t reg, uint8_t *buf, uint32_t len);
 static uint8_t st7123_parse_report(const uint8_t *report, coord_t *points, uint32_t num_points);
+static void st7123_touch_irq_clear_pending(void);
+static void st7123_i2c_abort_and_recover(void);
 
 /*******************************************************************************************************************//**
  *  @brief       This function is used to read touch data from the ST7123 controller.
@@ -144,8 +148,8 @@ fsp_err_t st7123_touch_irq_init(void)
 
 
 
-/* IIC 控制器复位：触摸连续失败（总线残留/状态机卡死）时调用，Close+Open 重开。
- * IIC0 与 OV5640 共用，但 OV5640 仅在启动时配置，运行中复位安全。 */
+/* IIC 控制器恢复：触摸连续失败（总线残留/状态机卡死）时调用 Abort 清事务状态。
+ * IIC0 与 OV5640 共用，但 OV5640 仅在启动时配置，运行中 Abort 用于恢复异常触摸事务。 */
 
 /*******************************************************************************************************************//**
  *  @brief       Touch service task used by the bare-metal main loop.
@@ -166,7 +170,10 @@ void st7123_touch_irq_print_task(void)
     fsp_err_t err = st7123_get_status(&status, touch_coordinates, ST7123_MAX_TOUCH_POINTS);
     if (FSP_SUCCESS != err)
     {
-        /* 裸读（验证基线）：不重试不 recover干预——ST7123 慢响应/瞬时忙由 100ms I2C 超时兜底；持续失败只降频打印。 */
+        st7123_i2c_abort_and_recover();
+        R_BSP_SoftwareDelay(2U, BSP_DELAY_UNITS_MILLISECONDS);
+
+        /* 触摸芯片偶发密集中断时，IIC 可能返回 IN_USE/ABORTED。这里主动恢复总线并降频打印，避免串口刷屏。 */
         if ((++g_st7123_fail_count % 25U) == 1U)
         {
             DBG_LOG("ST7123 touch read fail: %d\r\n", (int) err);
@@ -262,19 +269,38 @@ static fsp_err_t st7123_i2c_read(uint16_t reg, uint8_t *buf, uint32_t len)
     err = R_IIC_MASTER_SlaveAddressSet(&g_i2c_master0_ctrl, ST7123_I2C_SLAVE_ADDR, I2C_MASTER_ADDR_MODE_7BIT);
     APP_ERR_RETURN(err, " ** IIC MASTER SlaveAddressSet ST7123 failed ** \r\n");
 
+    camera_i2c_comm_event_clear();
+
     /* Use STOP between the register-address write and data read.
      * The project already uses this style for OV5640; repeated-start leaves IIC0 busy here. */
     err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg_addr, sizeof(reg_addr), false);
-    APP_ERR_RETURN(err, " ** IIC MASTER_Write ST7123 register failed ** \r\n");
+    if (FSP_SUCCESS != err)
+    {
+        st7123_i2c_abort_and_recover();
+        return err;
+    }
 
     err = wait_for_i2c_event(I2C_MASTER_EVENT_TX_COMPLETE);
-    APP_ERR_RETURN(err, " ** I2C master ST7123 register write timeout ** \r\n");
+    if (FSP_SUCCESS != err)
+    {
+        st7123_i2c_abort_and_recover();
+        return err;
+    }
 
+    camera_i2c_comm_event_clear();
     err = R_IIC_MASTER_Read(&g_i2c_master0_ctrl, buf, len, false);
-    APP_ERR_RETURN(err, " ** IIC MASTER_Read ST7123 data failed ** \r\n");
+    if (FSP_SUCCESS != err)
+    {
+        st7123_i2c_abort_and_recover();
+        return err;
+    }
 
     err = wait_for_i2c_event(I2C_MASTER_EVENT_RX_COMPLETE);
-    APP_ERR_RETURN(err, " ** I2C master ST7123 data read timeout ** \r\n");
+    if (FSP_SUCCESS != err)
+    {
+        st7123_i2c_abort_and_recover();
+        return err;
+    }
 
     return FSP_SUCCESS;
 }
@@ -295,10 +321,46 @@ static fsp_err_t st7123_i2c_write(uint16_t reg, const uint8_t * buf, uint32_t le
 
     err = R_IIC_MASTER_SlaveAddressSet(&g_i2c_master0_ctrl, ST7123_I2C_SLAVE_ADDR, I2C_MASTER_ADDR_MODE_7BIT);
     if (FSP_SUCCESS != err) { return err; }
+
+    camera_i2c_comm_event_clear();
+
     err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, frame, 2U + len, false);
-    if (FSP_SUCCESS != err) { return err; }
+    if (FSP_SUCCESS != err)
+    {
+        st7123_i2c_abort_and_recover();
+        return err;
+    }
+
     err = wait_for_i2c_event(I2C_MASTER_EVENT_TX_COMPLETE);
+    if (FSP_SUCCESS != err)
+    {
+        st7123_i2c_abort_and_recover();
+    }
+
     return err;
+}
+
+/*******************************************************************************************************************//**
+ * @brief      Abort a stuck IIC transaction and clear the shared IIC callback event.
+ **********************************************************************************************************************/
+static void st7123_i2c_abort_and_recover(void)
+{
+    (void) R_IIC_MASTER_Abort(&g_i2c_master0_ctrl);
+    camera_i2c_comm_event_clear();
+}
+
+/*******************************************************************************************************************//**
+ * @brief      Clear the TP_INT ICU/NVIC pending state.
+ *
+ * @note       FSP clears edge-triggered ICU IR before entering the user callback. This explicit clear is kept as an
+ *             extra guard while debugging TP_INT false falling-edge interrupts.
+ **********************************************************************************************************************/
+static void st7123_touch_irq_clear_pending(void)
+{
+    if (FSP_INVALID_VECTOR != g_external_irq_cfg.irq)
+    {
+        R_BSP_IrqClearPending(g_external_irq_cfg.irq);
+    }
 }
 
 /*******************************************************************************************************************//**
@@ -342,6 +404,8 @@ void external_irq_callback(external_irq_callback_args_t *p_args)
 {
     if ((NULL != p_args) && (g_external_irq_cfg.channel == p_args->channel))
     {
+        R_IOPORT_PinToggle(&g_ioport_ctrl, BSP_IO_PORT_01_PIN_10);
+        st7123_touch_irq_clear_pending();
         g_touch_irq_pending = true;
         g_irq_state = true;
     }

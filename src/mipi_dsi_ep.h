@@ -59,5 +59,6 @@ void handle_error (fsp_err_t err,  const char *err_str);
 void touch_screen_reset(void);
 void mipi_dsi_entry(void);
 void test_single_pixel(void);
+void R_IOPORT_PinToggle(ioport_ctrl_t * p_ctrl, bsp_io_port_pin_t pin);
 
 #endif /* MIPI_DSI_EP_H_ */

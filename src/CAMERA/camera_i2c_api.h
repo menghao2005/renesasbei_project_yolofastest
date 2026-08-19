@@ -17,6 +17,7 @@
 
 extern fsp_err_t camera_i2c_comm_write(uint32_t sub_address, uint32_t sub_address_length, const uint8_t *data, size_t data_length);
 extern fsp_err_t camera_i2c_comm_read(uint32_t sub_address, uint32_t sub_address_length, uint8_t *data, size_t data_length);
+extern void camera_i2c_comm_event_clear(void);
 
 
 #endif
