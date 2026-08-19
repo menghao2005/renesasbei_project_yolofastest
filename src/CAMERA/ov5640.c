@@ -13,6 +13,10 @@
 #include "Uart9_Debug.h"
 #include "hal_data.h"
 
+/* 初始化进度回调（弱符号）：UI 层实现则在初始化期间持续刷新加载动画；
+ * 未实现时编译器自动解析为 NULL，调用无害。 */
+extern void ov5640_progress_tick(uint32_t idx, uint32_t total) __attribute__((weak));
+
 /* OV5640模块芯片ID */
 #define OV5640_CHIP_ID  0x5640
 
@@ -384,11 +388,17 @@ static uint16_t ov5640_get_chip_id(void)
  */
 static void ov5640_init_reg(void)
 {
-    for (uint32_t cfg_index = 0;
-         cfg_index < (sizeof(ov5640_init_cfg) / sizeof(ov5640_init_cfg[0]));
-         cfg_index++)
+    uint32_t total = (uint32_t)(sizeof(ov5640_init_cfg) / sizeof(ov5640_init_cfg[0]));
+    for (uint32_t cfg_index = 0; cfg_index < total; cfg_index++)
     {
         ov5640_write_reg(ov5640_init_cfg[cfg_index].reg, ov5640_init_cfg[cfg_index].dat);
+        if ((cfg_index & 0xFU) == 0U)   /* 每 16 次 I2C 写刷一帧（~流畅） */
+        {
+            if (&ov5640_progress_tick != (void (*)(uint32_t, uint32_t))0)
+            {
+                ov5640_progress_tick(cfg_index, total);
+            }
+        }
     }
     
 }

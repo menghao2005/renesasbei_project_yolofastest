@@ -191,6 +191,12 @@ void hal_entry(void)
     /* ===== NPU init ===== */
 
     ui_control_draw_boot_text("正在初始化");      /* 上电提示：Ethos-U55 初始化 */
+    /* NPU Open 是单条阻塞调用，无法内插 tick；用短延时补几帧让 spinner 旋转可见 */
+    for (int npu_t = 0; npu_t < 4; npu_t++)
+    {
+        ui_control_draw_boot_text("正在初始化");
+        R_BSP_SoftwareDelay(60U, BSP_DELAY_UNITS_MILLISECONDS);
+    }
     err  = RM_ETHOSU_Open(&g_rm_ethosu0_ctrl, &g_rm_ethosu0_cfg);
     if (FSP_SUCCESS != err)
     {

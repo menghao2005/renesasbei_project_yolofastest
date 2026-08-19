@@ -505,6 +505,35 @@ static void ui_draw_circle_ring(int cx, int cy, int r, int thick, uint16_t color
     }
 }
 
+/* 流畅旋转加载环：12 段金色圆弧，头亮尾暗（尾迹衰减），放在文字正上方居中。
+ * 调用方在阻塞初始化期间持续递增 frame 即可看到顺滑旋转。 */
+static void ui_draw_spinner(int cx, int cy, int r, uint32_t frame)
+{
+    /* 12 等分（每段 30°），用整数 sin/cos 查表（*10000） */
+    static const int16_t sc[13] = {
+         10000,  8660,  5000,     0, -5000, -8660, -10000, -8660,
+         -5000,     0,  5000,  8660,  10000
+    };
+    const uint16_t track = 0x6B6DU;   /* 深藏青底上的暗金轨道 */
+    const uint16_t head  = UI_COLOR_GOLD;
+
+    /* 底环（整圈暗金，给旋转弧一个轨道） */
+    ui_draw_circle_ring(cx, cy, r, 3, track);
+
+    /* 旋转弧：从 head 起逆时针 300°（10 段），每段亮度递减 */
+    int base = (int)(frame % 12U);
+    for (int s = 0; s < 10; s++)
+    {
+        int idx = (base + s) % 12;
+        int xx = cx + (r * sc[(idx + 3) % 12]) / 10000;
+        int yy = cy - (r * sc[idx]) / 10000;
+        /* 亮度：s=0 最亮，越往后越暗 */
+        int t = (9 - s) * 255 / 9;       /* 0..255 */
+        uint16_t c = ui_color_lerp(track, head, t, 255);
+        ui_fill_circle(xx, yy, 3, c);
+    }
+}
+
 /* 3D 按钮：底部阴影 + 垂直渐变 + 顶部高光 + 圆角边框 */
 static void ui_draw_button(int x, int y, int w, int h,
                            const char * label, int scale,
@@ -1099,16 +1128,30 @@ void ui_control_init(void)
     ui_redraw_screen();
 }
 
+/* 初始化进度回调（弱符号，被 ov5640.c 引用）：每次被调用即重绘一次
+ * "正在初始化" + 旋转加载环，spinner 帧自动递增 -> 流畅旋转。 */
+void ov5640_progress_tick(uint32_t idx, uint32_t total)
+{
+    (void) idx;
+    (void) total;
+    ui_control_draw_boot_text("正在初始化");
+}
+
 /* 开机初始化提示：显示在相机区中部（深蓝底金字），主循环第一帧 blit 后自然覆盖。
  * 上电后 OV5640 配置 + NPU 初始化 + 首帧采集需 1-2s，此提示避免"黑屏"观感。 */
 void ui_control_draw_boot_text(const char * msg)
 {
-    /* 中文提示：16x16 字库 scale 2 居中 */
+    static uint32_t s_spin_frame = 0U;
+
+    /* 中文提示：16x16 字库 scale 2 居中，上方叠加旋转加载环 */
     if ((uint8_t) msg[0] >= 0x80U)
     {
-        ui_fill_rect(0, 336, UI_SCREEN_W, 32, UI_COLOR_BRAND_BG);
-        ui_fill_rect(0, 336, UI_SCREEN_W, 2, UI_COLOR_GOLD);
-        ui_draw_cn_centered(UI_SCREEN_W / 2, 336 + 16, msg, UI_COLOR_GOLD, 2);
+        /* 背景向上扩展，给 spinner 留空间（y296~368，72px） */
+        ui_fill_rect(0, 296, UI_SCREEN_W, 72, UI_COLOR_BRAND_BG);
+        ui_fill_rect(0, 296, UI_SCREEN_W, 2, UI_COLOR_GOLD);
+        ui_draw_spinner(UI_SCREEN_W / 2, 314, 14, s_spin_frame);
+        ui_draw_cn_centered(UI_SCREEN_W / 2, 344, msg, UI_COLOR_GOLD, 2);
+        s_spin_frame++;
         __DSB();
         return;
     }
