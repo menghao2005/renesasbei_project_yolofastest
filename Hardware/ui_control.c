@@ -520,7 +520,7 @@ static void ui_draw_spinner(int cx, int cy, int r, uint32_t frame)
     const uint16_t head  = UI_COLOR_GOLD;
 
     /* 底环（整圈暗金，给旋转弧一个轨道） */
-    ui_draw_circle_ring(cx, cy, r, 4, track);
+    ui_draw_circle_ring(cx, cy, r, 5, track);
 
     /* 旋转弧：从 head 起逆时针 300°（20 段），每段亮度平滑递减 -> 长尾迹 */
     int base = (int)(frame % 24U);
@@ -532,7 +532,7 @@ static void ui_draw_spinner(int cx, int cy, int r, uint32_t frame)
         /* 亮度：s=0 最亮，越往后越暗（长尾迹，24 级衰减） */
         int t = (19 - s) * 255 / 19;     /* 0..255 */
         uint16_t c = ui_color_lerp(track, head, t, 255);
-        ui_fill_circle(xx, yy, 3, c);
+        ui_fill_circle(xx, yy, 4, c);
     }
 }
 
@@ -1148,11 +1148,11 @@ void ui_control_draw_boot_text(const char * msg)
     /* 中文提示：16x16 字库 scale 2 居中，上方叠加旋转加载环 */
     if ((uint8_t) msg[0] >= 0x80U)
     {
-        /* 背景向上扩展，给 spinner 留空间（y296~368，72px） */
-        ui_fill_rect(0, 296, UI_SCREEN_W, 72, UI_COLOR_BRAND_BG);
-        ui_fill_rect(0, 296, UI_SCREEN_W, 2, UI_COLOR_GOLD);
-        ui_draw_spinner(UI_SCREEN_W / 2, 314, 14, s_spin_frame);
-        ui_draw_cn_centered(UI_SCREEN_W / 2, 344, msg, UI_COLOR_GOLD, 2);
+        /* 背景区（y300~372，72px），上方叠加大号旋转加载环 */
+        ui_fill_rect(0, 300, UI_SCREEN_W, 72, UI_COLOR_BRAND_BG);
+        ui_fill_rect(0, 300, UI_SCREEN_W, 2, UI_COLOR_GOLD);
+        ui_draw_spinner(UI_SCREEN_W / 2, 318, 22, s_spin_frame);
+        ui_draw_cn_centered(UI_SCREEN_W / 2, 352, msg, UI_COLOR_GOLD, 2);
         s_spin_frame++;
         __DSB();
         return;
