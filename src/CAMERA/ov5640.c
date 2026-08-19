@@ -392,7 +392,7 @@ static void ov5640_init_reg(void)
     for (uint32_t cfg_index = 0; cfg_index < total; cfg_index++)
     {
         ov5640_write_reg(ov5640_init_cfg[cfg_index].reg, ov5640_init_cfg[cfg_index].dat);
-        if ((cfg_index & 0xFU) == 0U)   /* 每 16 次 I2C 写刷一帧（~流畅） */
+        if ((cfg_index & 0x1FU) == 0U)   /* 每 32 次 I2C 写刷一帧（转速舒缓） */
         {
             if (&ov5640_progress_tick != (void (*)(uint32_t, uint32_t))0)
             {

@@ -505,30 +505,32 @@ static void ui_draw_circle_ring(int cx, int cy, int r, int thick, uint16_t color
     }
 }
 
-/* 流畅旋转加载环：12 段金色圆弧，头亮尾暗（尾迹衰减），放在文字正上方居中。
- * 调用方在阻塞初始化期间持续递增 frame 即可看到顺滑旋转。 */
+/* 流畅旋转加载环：24 段金色圆弧，点径略大连成弧，头亮尾暗（长尾迹），
+ * 放在文字正上方居中。调用方在阻塞初始化期间持续递增 frame 即可顺滑旋转。
+ * 注：仅上电初始化阶段调用，不进主循环，对运行性能零影响。 */
 static void ui_draw_spinner(int cx, int cy, int r, uint32_t frame)
 {
-    /* 12 等分（每段 30°），用整数 sin/cos 查表（*10000） */
-    static const int16_t sc[13] = {
-         10000,  8660,  5000,     0, -5000, -8660, -10000, -8660,
-         -5000,     0,  5000,  8660,  10000
+    /* 24 等分（每段 15°），整数 sin/cos 查表（*10000） */
+    static const int16_t sc[25] = {
+         10000,  9659,  8660,  7071,  5000,  2588,     0, -2588,
+         -5000, -7071, -8660, -9659, -10000, -9659, -8660, -7071,
+         -5000, -2588,     0,  2588,  5000,  7071,  8660,  9659, 10000
     };
     const uint16_t track = 0x6B6DU;   /* 深藏青底上的暗金轨道 */
     const uint16_t head  = UI_COLOR_GOLD;
 
     /* 底环（整圈暗金，给旋转弧一个轨道） */
-    ui_draw_circle_ring(cx, cy, r, 3, track);
+    ui_draw_circle_ring(cx, cy, r, 4, track);
 
-    /* 旋转弧：从 head 起逆时针 300°（10 段），每段亮度递减 */
-    int base = (int)(frame % 12U);
-    for (int s = 0; s < 10; s++)
+    /* 旋转弧：从 head 起逆时针 300°（20 段），每段亮度平滑递减 -> 长尾迹 */
+    int base = (int)(frame % 24U);
+    for (int s = 0; s < 20; s++)
     {
-        int idx = (base + s) % 12;
-        int xx = cx + (r * sc[(idx + 3) % 12]) / 10000;
+        int idx = (base + s) % 24;
+        int xx = cx + (r * sc[(idx + 6) % 24]) / 10000;
         int yy = cy - (r * sc[idx]) / 10000;
-        /* 亮度：s=0 最亮，越往后越暗 */
-        int t = (9 - s) * 255 / 9;       /* 0..255 */
+        /* 亮度：s=0 最亮，越往后越暗（长尾迹，24 级衰减） */
+        int t = (19 - s) * 255 / 19;     /* 0..255 */
         uint16_t c = ui_color_lerp(track, head, t, 255);
         ui_fill_circle(xx, yy, 3, c);
     }
