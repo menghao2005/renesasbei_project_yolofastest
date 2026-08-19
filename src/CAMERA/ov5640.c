@@ -17,6 +17,26 @@
  * 未实现时编译器自动解析为 NULL，调用无害。 */
 extern void ov5640_progress_tick(uint32_t idx, uint32_t total) __attribute__((weak));
 
+/* spinner 时间节流：基于 DWT 周期计数，相邻两帧 >= ~33ms 才刷新，
+ * 与 I2C 写快慢无关 -> 匀速旋转，不再"快转-卡住"。 */
+static uint32_t s_spin_last_cyc = 0U;
+#define SPIN_MIN_CYC  (SystemCoreClock / 30)   /* 约 33ms 一帧 */
+
+static void ov5640_spin_tick(uint32_t idx, uint32_t total)
+{
+    if (&ov5640_progress_tick == (void (*)(uint32_t, uint32_t))0)
+    {
+        return;   /* 未实现，跳过 */
+    }
+    uint32_t now = DWT->CYCCNT;
+    if ((now - s_spin_last_cyc) < SPIN_MIN_CYC)
+    {
+        return;   /* 节流未到，不刷 */
+    }
+    s_spin_last_cyc = now;
+    ov5640_progress_tick(idx, total);
+}
+
 /* OV5640模块芯片ID */
 #define OV5640_CHIP_ID  0x5640
 
@@ -392,13 +412,7 @@ static void ov5640_init_reg(void)
     for (uint32_t cfg_index = 0; cfg_index < total; cfg_index++)
     {
         ov5640_write_reg(ov5640_init_cfg[cfg_index].reg, ov5640_init_cfg[cfg_index].dat);
-        if ((cfg_index & 0x1FU) == 0U)   /* 每 32 次 I2C 写刷一帧（转速舒缓） */
-        {
-            if (&ov5640_progress_tick != (void (*)(uint32_t, uint32_t))0)
-            {
-                ov5640_progress_tick(cfg_index, total);
-            }
-        }
+        ov5640_spin_tick(cfg_index, total);   /* 基于时间匀速刷新 */
     }
     
 }
@@ -435,8 +449,12 @@ uint8_t ov5640_init(void)
     
 
     ov5640_init_reg();              /* 初始化OV5640寄存器配置 */
-    delay_ms(300);
-    delay_ms(200);
+    /* 拆 500ms 阻塞延时为带 spinner tick 的循环，旋转全程匀速不卡 */
+    for (int sp = 0; sp < 16; sp++)
+    {
+        ov5640_spin_tick(0U, 1U);
+        delay_ms(32);
+    }
     return OV5640_EOK;
 }
 

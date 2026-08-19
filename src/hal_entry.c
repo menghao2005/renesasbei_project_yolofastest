@@ -178,6 +178,7 @@ void hal_entry(void)
     ASRPRO_Init();     // 语音模块初始化
     __DSB();
 
+    DWT_init();   /* 提前使能 DWT 周期计数器：spinner 时间节流依赖（无副作用） */
     R_IIC_MASTER_Open(&g_i2c_master0_ctrl, &g_i2c_master0_cfg); // I2C for camera and touch panel.
     ui_control_draw_boot_text("正在初始化");   /* 上电提示：OV5640 配置 ~1s */
     ov5640_init();
@@ -229,7 +230,6 @@ void hal_entry(void)
     int8_t *p_model_p4    = GetModelOutputPtr_PartitionedCall_0_70298();
     int8_t *p_model_p5    = GetModelOutputPtr_PartitionedCall_1_70299();
     DBG_LOG("[MODEL] profiling enabled on UART9; backend=tflite-int8(cpu+npu)\r\n");
-    DWT_init();
     /* 上电不启动抓取：等待用户在屏幕上按 POWER 开关后，由 ui_control 启动
      * HarvestTask_Init()。 */
     prepare_camera_capture_buffer(p_camera_buffers[frame_index_display]);
