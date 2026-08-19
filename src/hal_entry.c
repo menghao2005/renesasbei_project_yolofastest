@@ -224,7 +224,6 @@ void hal_entry(void)
     int8_t *p_model_p5    = GetModelOutputPtr_PartitionedCall_1_70299();
     DBG_LOG("[MODEL] profiling enabled on UART9; backend=tflite-int8(cpu+npu)\r\n");
     DWT_init();
-    ui_control_draw_boot_text("READY");         /* 上电提示：就绪（首帧相机画面即将覆盖） */
     /* 上电不启动抓取：等待用户在屏幕上按 POWER 开关后，由 ui_control 启动
      * HarvestTask_Init()。 */
     prepare_camera_capture_buffer(p_camera_buffers[frame_index_display]);
