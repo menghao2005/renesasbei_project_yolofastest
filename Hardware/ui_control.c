@@ -1148,11 +1148,11 @@ void ui_control_draw_boot_text(const char * msg)
     /* 中文提示：16x16 字库 scale 2 居中，上方叠加旋转加载环 */
     if ((uint8_t) msg[0] >= 0x80U)
     {
-        /* 背景区（y292~364，72px）；环在上、文字在下，中间留 6px 间隙 */
-        ui_fill_rect(0, 292, UI_SCREEN_W, 72, UI_COLOR_BRAND_BG);
-        ui_fill_rect(0, 292, UI_SCREEN_W, 2, UI_COLOR_GOLD);
-        ui_draw_spinner(UI_SCREEN_W / 2, 312, 22, s_spin_frame);   /* 环占 y290~334 */
-        ui_draw_cn_centered(UI_SCREEN_W / 2, 356, msg, UI_COLOR_GOLD, 2);  /* 字占 y340~372，间隙 6px */
+        /* 背景区（y282~374，92px）；顶部线在弧上方留 3px，环与文字留 4px */
+        ui_fill_rect(0, 282, UI_SCREEN_W, 92, UI_COLOR_BRAND_BG);
+        ui_fill_rect(0, 282, UI_SCREEN_W, 2, UI_COLOR_GOLD);          /* 线 y282~283 */
+        ui_draw_spinner(UI_SCREEN_W / 2, 312, 22, s_spin_frame);     /* 弧顶 y286，与线差 3px */
+        ui_draw_cn_centered(UI_SCREEN_W / 2, 356, msg, UI_COLOR_GOLD, 2);  /* 字 y340~372，与环底差 4px */
         s_spin_frame++;
         __DSB();
         return;
