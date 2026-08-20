@@ -445,6 +445,16 @@ void HarvestTask_Init(void)
     g_harvest_done_homed = false;
 }
 
+void HarvestTask_Stop(void)
+{
+    /* 复位为初始态并标记已完成（之后不会自行发起 move）。
+     * 真正的机械臂归位由调用方在停止后显式发出。 */
+    g_harvest_task_state = HARVEST_TASK_DONE;
+    g_harvest_done_homed = true;
+    g_detect_valid_frames = 0U;
+    g_tree_grab_index = 0U;
+}
+
 void HarvestTask_Service(const ai_detection_t * p_dets, uint32_t num_dets)
 {
     ai_center_offset_calc(p_dets, num_dets, NULL);

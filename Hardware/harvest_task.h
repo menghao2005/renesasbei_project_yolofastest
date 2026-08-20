@@ -19,6 +19,9 @@ extern "C" {
 
 void HarvestTask_Init(void);
 void HarvestTask_Service(const ai_detection_t * p_dets, uint32_t num_dets);
+/* 停止抓取流程并复位内部状态（切到 REMOTE 或待机时调用），
+ * 防止残留的定时 move 在模式切换后继续驱动机械臂。 */
+void HarvestTask_Stop(void);
 
 #ifdef __cplusplus
 }

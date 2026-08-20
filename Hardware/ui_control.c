@@ -170,6 +170,7 @@
 #define UI_REMOTE_HOME_BASE     (1500U)
 #define UI_REMOTE_HOME_UPPER    (1640U)
 #define UI_REMOTE_HOME_FOREARM  (2400U)
+#define UI_REMOTE_HOME_MOVE_MS  (4000U)   /* 切换模式/待机回位平滑时长（慢速） */
 
 /* ------------------------------------------------------------------------- */
 /* 可命中的 UI 元素                                                            */
@@ -850,17 +851,22 @@ static ui_hit_t ui_hit_test(uint16_t x, uint16_t y)
 /* ------------------------------------------------------------------------- */
 /* 状态机动作                                                                 */
 /* ------------------------------------------------------------------------- */
-/* 补光灯开关：翻转 + P109 高/低 */
+/* 补光灯开关：翻转 + P109 高/低；任意模式/状态均可控制（触屏与语音调用） */
 void ui_light_toggle(void)
 {
     g_light_on = !g_light_on;
     (void) R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_01_PIN_09,
                              g_light_on ? BSP_IO_LEVEL_HIGH : BSP_IO_LEVEL_LOW);
+    /* 刷新对应界面的灯按钮图标 */
     if (UI_MODE_REMOTE == g_mode)
     {
         ui_draw_light_btn(RMT_LIGHT_X, RMT_LIGHT_Y, RMT_LIGHT_W, RMT_LIGHT_H);
-        __DSB();
     }
+    else
+    {
+        ui_draw_light_btn(AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H);
+    }
+    __DSB();
 }
 
 /* 爪子按钮（只画自己区域，防全面板闪屏） */
@@ -942,6 +948,8 @@ static void ui_remote_reset_to_home(void)
     g_remote_base    = UI_REMOTE_HOME_BASE;
     g_remote_upper   = UI_REMOTE_HOME_UPPER;
     g_remote_forearm = UI_REMOTE_HOME_FOREARM;
+    /* home 位爪子张开（对应回位的 900us），同步状态避免按钮显示与实际姿态不符 */
+    g_gripper_closed = false;
 }
 
 void ui_toggle_power(void)
@@ -963,7 +971,7 @@ void ui_toggle_power(void)
             {
                 ui_remote_reset_to_home();
                 RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                             UI_REMOTE_GRIPPER_US, 4000U);
+                                             UI_REMOTE_GRIPPER_US, UI_REMOTE_HOME_MOVE_MS);
             }
             break;
 
@@ -1004,19 +1012,37 @@ void ui_toggle_power(void)
 
 void ui_toggle_mode(void)
 {
+    /* 切换模式前先停底盘（步进电机），防止 AUTO 运行中底盘正在移动时
+     * 切到 REMOTE 后底盘继续前进。 */
+    Stepping_Motor_Stopping_Init();
+
     if (g_mode == UI_MODE_AUTO)
     {
         g_mode = UI_MODE_REMOTE;
-        /* 从自动切遥控：无论 power 状态都登记回默认位（4s 平滑）。
-         * LOCKED（STOP 后）时机械臂 paused，回位 move 冻结，点“继续”后平滑执行，防瞬间跳回默认位。 */
+        /* 进遥控：先彻底停止 AUTO 抓取流程并冻结任何残留插值，
+         * 防止残留的定时 move 抢断本次回位；再慢速平滑归位 home。 */
+        HarvestTask_Stop();
+        g_harvest_started = false;   /* 下次进 AUTO 按“开始”会重新 Init 抓取流程 */
+        RobotArm_SetPaused(true);
         ui_remote_reset_to_home();
+        RobotArm_SetPaused(false);
         RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
-                                     UI_REMOTE_GRIPPER_US, 4000U);
+                                     UI_REMOTE_GRIPPER_US, UI_REMOTE_HOME_MOVE_MS);
+        /* 进遥控默认待机：把玩摇杆只跟手、不驱动舵机 */
+        g_power = UI_POWER_OFF;
     }
     else
     {
         g_mode = UI_MODE_AUTO;
-        /* 回 AUTO 待机：不自动启动流程，舵机保持遥控姿态（防大幅跳变）；用户按开始才启动。 */
+        /* 回 AUTO 待机：停止抓取流程并慢速回初始位；不自动启动，
+         * 用户按“开始”才启动 AUTO 流程（g_harvest_started 守卫）。 */
+        HarvestTask_Stop();
+        g_harvest_started = false;
+        RobotArm_SetPaused(true);
+        ui_remote_reset_to_home();
+        RobotArm_SetPaused(false);
+        RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
+                                     UI_REMOTE_GRIPPER_US, UI_REMOTE_HOME_MOVE_MS);
         g_power = UI_POWER_OFF;
     }
 
@@ -1203,8 +1229,9 @@ void ui_control_service(void)
         ui_light_toggle();
     }
 
-    /* 摇杆：按住时更新摇杆头位置并持续步进（REMOTE + 运行中） */
-    if (UI_HIT_JOY == hit)
+    /* 摇杆：REMOTE 模式下摇杆头始终跟手（纯 UI 反馈，待机/锁定也跟手）；
+     * 仅运行中（REMOTE + ON）才驱动机械臂步进，待机/锁定只跟手不动作。 */
+    if ((UI_HIT_JOY == hit) && (UI_MODE_REMOTE == g_mode))
     {
         g_joy_x = g_touch_x;
         g_joy_y = g_touch_y;
@@ -1227,15 +1254,17 @@ void ui_control_service(void)
         }
     }
 
-    /* 爪子切换（边沿触发，任意电源状态可用） */
-    if ((UI_HIT_GRASP == hit) && (UI_HIT_GRASP != g_touch_last))
+    /* 爪子切换（边沿触发，仅运行中 ON 可用；待机/锁定不动作） */
+    if ((UI_HIT_GRASP == hit) && (UI_HIT_GRASP != g_touch_last)
+        && (UI_POWER_ON == g_power))
     {
         g_gripper_closed = !g_gripper_closed;
         RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm,
                                      g_gripper_closed ? 1350U : 900U, 300U);
     }
-    /* 自动抓取（边沿触发，仅在 IDLE 且非移动中启动） */
+    /* 自动抓取（边沿触发，仅运行中 ON 且 IDLE 且非移动中启动；待机/锁定不动作） */
     if ((UI_HIT_AUTOGRAB == hit) && (UI_HIT_AUTOGRAB != g_touch_last)
+        && (UI_POWER_ON == g_power)
         && (UI_AG_IDLE == g_autograb_state) && !RobotArm_IsMoving())
     {
         g_autograb_state = UI_AG_DESCEND;
@@ -1244,8 +1273,8 @@ void ui_control_service(void)
                                      900U, 1200U);
     }
 
-    /* 自动抓取状态机轮询 */
-    if (UI_AG_IDLE != g_autograb_state)
+    /* 自动抓取状态机轮询：仅运行中推进，锁定/待机冻结 */
+    if ((UI_AG_IDLE != g_autograb_state) && (UI_POWER_ON == g_power))
     {
         if (!RobotArm_IsMoving())
         {
@@ -1382,6 +1411,8 @@ void ui_gripper_grasp_voice(void)
 {
     extern bool g_gripper_closed;
     extern uint16_t g_remote_base, g_remote_upper, g_remote_forearm;
+    /* 仅在运行中响应，待机/锁定不动作 */
+    if (UI_POWER_ON != g_power) return;
     g_gripper_closed = true;
     RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm, 1350U, 300U);
     ui_draw_hit_btn(UI_HIT_GRASP, false);
@@ -1391,6 +1422,8 @@ void ui_gripper_open_voice(void)
 {
     extern bool g_gripper_closed;
     extern uint16_t g_remote_base, g_remote_upper, g_remote_forearm;
+    /* 仅在运行中响应，待机/锁定不动作 */
+    if (UI_POWER_ON != g_power) return;
     g_gripper_closed = false;
     RobotArm_MoveToWristDownTime(g_remote_base, g_remote_upper, g_remote_forearm, 900U, 300U);
     ui_draw_hit_btn(UI_HIT_GRASP, false);
@@ -1401,6 +1434,7 @@ extern ui_autograb_state_t g_autograb_state;
 extern uint16_t g_remote_base, g_remote_upper, g_remote_forearm;
 void ui_autograb_start(void)
 {
+    if (UI_POWER_ON != g_power) return;   /* 待机/锁定不启动 */
     if (UI_AG_IDLE != g_autograb_state || RobotArm_IsMoving()) return;
     g_autograb_state = UI_AG_DESCEND;
     RobotArm_MoveToWristDownTime(g_remote_base, 1050U, 2100U, 900U, 1200U);

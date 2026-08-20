@@ -147,14 +147,16 @@ void ASRPRO_Process(void)
             break;
 
         case ASR_CMD_LIGHT_ON:
-            if (ui_control_get_mode() == UI_MODE_REMOTE && !ui_control_get_light_on())
+            /* 任意模式（AUTO/REMOTE）均可语音控制灯光 */
+            if (!ui_control_get_light_on())
             {
                 ui_light_toggle();
             }
             break;
 
         case ASR_CMD_LIGHT_OFF:
-            if (ui_control_get_mode() == UI_MODE_REMOTE && ui_control_get_light_on())
+            /* 任意模式（AUTO/REMOTE）均可语音控制灯光 */
+            if (ui_control_get_light_on())
             {
                 ui_light_toggle();
             }
