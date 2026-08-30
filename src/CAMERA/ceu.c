@@ -447,7 +447,6 @@ void yuv422_to_rgb888(const void* inbuf, void* outbuf, uint16_t width, uint16_t 
 
     uint32_t rgb888_pixel_data = 0;
 
-    SCB_EnableDCache();
 
     x_start = 0;
     y_start = 0;
@@ -502,7 +501,6 @@ void yuv422_to_rgb888(const void* inbuf, void* outbuf, uint16_t width, uint16_t 
         }
     }
 
-    SCB_DisableDCache();
 }
 
 void yuv422_to_rgb565(const void* inbuf, void* outbuf, uint16_t width, uint16_t height)
@@ -518,7 +516,6 @@ void yuv422_to_rgb565(const void* inbuf, void* outbuf, uint16_t width, uint16_t 
     int32_t temp;
     uint16_t pixel_data;
 
-    SCB_EnableDCache();
 
     x_start = 0;
     y_start = 0;
@@ -571,7 +568,6 @@ void yuv422_to_rgb565(const void* inbuf, void* outbuf, uint16_t width, uint16_t 
         }
     }
 
-    SCB_DisableDCache();
 }
 void YUVtoRGB565(uint8_t *yuv, uint16_t *rgb565, int width, int height) {
     int i, j;

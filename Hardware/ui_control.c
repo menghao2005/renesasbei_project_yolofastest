@@ -36,7 +36,6 @@
 #include "harvest_task.h"
 #include "hal_data.h"
 #include "Stepping_Motor.h"
-#include "renesas_logo_data.h"
 
 #include <string.h>
 

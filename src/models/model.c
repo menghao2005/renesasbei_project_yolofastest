@@ -59,7 +59,6 @@
 
 // CPU compute declarations
 #include "sub_0000_invoke.h"
-#include "compute_sub_0001.h"
 #include "bsp_api.h"
 
 #define MODEL_PROFILE_PRINT_INTERVAL (30U)
@@ -96,19 +95,7 @@ static void model_profile_print_every(const model_profile_t *p_profile)
   }
 }
 
-/*
- * 这里放的是 CPU-only 的后处理输出缓存，已移到 cacheable SDRAM。
- * 这样后处理和画框读写都会更快。
- * 5类: P4=20x20x3x10=12000, P5=10x10x3x10=3000
- */
-int8_t buf_PartitionedCall_0_70298[12000] BSP_PLACE_IN_SECTION(".sdram");
-int8_t buf_PartitionedCall_1_70299[3000] BSP_PLACE_IN_SECTION(".sdram");
-
-/*
- * 这里是 CPU-only 的子图工作区，也保留在 cacheable SDRAM。
- * NPU 子图的输入/中间区仍由生成代码里的 sub_0000_arena 承担。
- */
-uint8_t compute_arena_sub_0001[kBufferSize_sub_0001] BSP_PLACE_IN_SECTION(".sdram");
+/* buf_PartitionedCall_* / compute_arena_sub_0001 已删除（Transpose 已省略，后处理直读 raw NPU 输出，省 ~30KB SDRAM） */
 
   // 模型输入：指向生成代码的 sub_0000_arena，当前仍在 .sdram_nocache。
 int8_t* GetModelInputPtr_serving_default_images_0() {

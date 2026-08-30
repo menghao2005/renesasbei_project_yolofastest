@@ -47,8 +47,9 @@ void       ui_control_redraw_screen(void);                   /* 整屏重绘当�
 void       ui_control_draw_boot_text(const char * msg);      /* 上电初始化提示（相机区深蓝底金字，首帧 blit 后覆盖） */
 
 /* 当前界面下相机画面应 blit 到的目标区域（hal_entry 每帧调用）：
- *   AUTO   -> (0, 0, 480, 640) 全屏
- *   REMOTE -> (0, 32, 480, 360) 顶部小窗
+ *   AUTO   -> (0, 0, 480, 600) 顶部相机区（y600-640 为三按钮控制条，不显示相机）
+ *   REMOTE -> (0, 0, 480, 392) 顶部小窗
+ * AI 检测仍对整帧 640x480 全图推理，与显示裁剪无关。
  * 返回 true 表示当前是 AUTO 界面（hal_entry 据此决定是否画检测框）。 */
 bool ui_control_get_camera_rect(int * x, int * y, int * w, int * h);
 

@@ -58,10 +58,6 @@
 // Arenas for NPU units
 extern uint8_t sub_0000_arena[kArenaSize_sub_0000];
 
-// Buffers
-extern int8_t buf_PartitionedCall_0_70298[12000];
-extern int8_t buf_PartitionedCall_1_70299[3000];
-
 typedef struct st_model_profile
 {
     uint32_t total_us;

@@ -38,7 +38,7 @@ uint8_t g_image_vga_sdram[2][CAMERA_FRAME_BYTES]
 
 static void prepare_camera_capture_buffer(uint8_t * p_buffer)
 {
-    SCB_CleanInvalidateDCache_by_Addr(p_buffer, (int32_t) CAMERA_FRAME_BYTES);
+    SCB_InvalidateDCache_by_Addr(p_buffer, (int32_t) CAMERA_FRAME_BYTES);
     __DSB();
     __ISB();
 }
@@ -242,23 +242,56 @@ void hal_entry(void)
     /* 中断级 kick：告知回调当前采集缓冲（此后每帧 FRAME_END 由回调直接 kick 下一帧） */
     ceu_set_capture_buf(p_camera_buffers[frame_index_display]);
 
-    /* 首帧等待：5s 超时后重试一次 kick+wait，仍失败则继续进主循环（断流自愈兜底）。
-     * 绝不 return——return 后主循环不跑，系统卡死无画面。 */
-    err = ceu_capture_wait(&ceu_used, 5000U);
-    if (FSP_SUCCESS != err)
+    /* 首帧等待：带 spinner 动画的非阻塞等待，5s 超时后重试一次。
+     * 原 ceu_capture_wait 阻塞 5s 期间 spinner 冻住，观感转很久；现每 ~33ms 重绘一次 spinner */
     {
-        DBG_LOG("CEU initial wait: %d, retry capture\r\n", (int) err);
-        prepare_camera_capture_buffer(p_camera_buffers[frame_index_display]);
-        err = ceu_capture_start(p_camera_buffers[frame_index_display]);
-        if (FSP_SUCCESS != err)
+        extern volatile uint8_t * g_ceu_completed_buf;
+        uint32_t wait_start = DWT_get_count();
+        uint32_t last_spin = DWT_get_count();
+        while ((NULL == g_ceu_completed_buf) && (DWT_count_to_us((uint32_t)(DWT_get_count() - wait_start)) < 5000000U))
         {
-            DBG_LOG("CEU initial kick failed: %d\r\n", (int) err);
+            if (DWT_count_to_us((uint32_t)(DWT_get_count() - last_spin)) >= 33000U)
+            {
+                ui_control_draw_boot_text("正在初始化");
+                last_spin = DWT_get_count();
+            }
+            R_BSP_SoftwareDelay(2U, BSP_DELAY_UNITS_MILLISECONDS);
         }
-        err = ceu_capture_wait(&ceu_used, 5000U);
-        if (FSP_SUCCESS != err)
+        if (NULL == g_ceu_completed_buf)
         {
-            DBG_LOG("CEU initial wait retry failed: %d, continue to main loop\r\n", (int) err);
+            DBG_LOG("CEU initial wait: timeout, retry capture\r\n");
+            prepare_camera_capture_buffer(p_camera_buffers[frame_index_display]);
+            err = ceu_capture_start(p_camera_buffers[frame_index_display]);
+            if (FSP_SUCCESS != err)
+            {
+                DBG_LOG("CEU initial kick failed: %d\r\n", (int) err);
+            }
+            else
+            {
+                ceu_set_capture_buf(p_camera_buffers[frame_index_display]);
+            }
+            wait_start = DWT_get_count();
+            last_spin = DWT_get_count();
+            while ((NULL == g_ceu_completed_buf) && (DWT_count_to_us((uint32_t)(DWT_get_count() - wait_start)) < 5000000U))
+            {
+                if (DWT_count_to_us((uint32_t)(DWT_get_count() - last_spin)) >= 33000U)
+                {
+                    ui_control_draw_boot_text("正在初始化");
+                    last_spin = DWT_get_count();
+                }
+                R_BSP_SoftwareDelay(2U, BSP_DELAY_UNITS_MILLISECONDS);
+            }
+            if (NULL == g_ceu_completed_buf)
+            {
+                DBG_LOG("CEU initial wait retry failed, continue to main loop\r\n");
+            }
+            err = (NULL != g_ceu_completed_buf) ? FSP_SUCCESS : FSP_ERR_TIMEOUT;
         }
+        else
+        {
+            err = FSP_SUCCESS;
+        }
+        (void) ceu_used;
     }
 
     /*
