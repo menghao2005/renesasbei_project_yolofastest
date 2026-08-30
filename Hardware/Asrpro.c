@@ -1,4 +1,16 @@
-﻿#include "Asrpro.h"
+﻿/*
+ * Asrpro.c
+ *
+ * ASRPRO 离线语音模块串口协议处理（UART 实例 g_uart0_asrpro，帧格式见 Asrpro.h）：
+ *   - UART 中断回调 g_uart0_asrpro_callback() 把收到的字节逐个喂入
+ *     ASRPRO_RxByte() 帧解析状态机，收齐"帧头 AA 55 + CMD + DATA + 帧尾 0D 0A"
+ *     一帧后置 g_asr_cmd_ready（中断上下文写）。
+ *   - 主循环周期调用 ASRPRO_Process()：取出命令并映射为 UI 动作
+ *     （开始/停止/继续/切模式/下抓/抓取/松开/开灯/关灯）。
+ *   - 屏幕端可通过"语音"按钮关闭语音（ui_control_get_voice_enabled()==false
+ *     时丢弃一切命令与半包，重新开启后不补执行）。
+ */
+#include "Asrpro.h"
 #include "string.h"
 #include "ui_control.h"
 
@@ -15,6 +27,9 @@ static uint8_t            asr_rx_state   = ASR_RX_IDLE;
 static uint8_t            asr_rx_buf[2]; /* [0]CMD [1]DATA */
 static uint8_t            asr_rx_idx     = 0;
 
+/* 语音命令交接区：UART 中断写、主循环读，均为 volatile。
+ * g_asr_cmd/g_asr_cmd_data 为最近一帧的 CMD/DATA，g_asr_cmd_ready=1 表示
+ * 已收齐完整一帧，主循环 ASRPRO_Process() 处理后清零。 */
 volatile asr_cmd_t  g_asr_cmd      = ASR_CMD_NONE;
 volatile uint8_t    g_asr_cmd_data = 0;
 volatile uint8_t    g_asr_cmd_ready = 0;
@@ -32,6 +47,7 @@ void ASRPRO_Init(void)
     g_asr_cmd_ready = 0;
 }
 
+/* 向语音模块发送一段字符串（阻塞式写 UART，用于对 ASRPRO 回传提示/指令） */
 void ASRPRO_SendMessage(const char * p_message)
 {
     R_SCI_B_UART_Write(&g_uart0_asrpro_ctrl, (uint8_t *)p_message, strlen(p_message));

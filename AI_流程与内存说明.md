@@ -43,11 +43,8 @@
 ### `.sdram`（可缓存 SDRAM）
 
 - `g_image_vga_sdram[2]`：相机双缓冲（每帧 640×480×2 = 614400 字节）
-- `buf_PartitionedCall_0_70298[12000]`：P4 CPU 后处理输出
-- `buf_PartitionedCall_1_70299[3000]`：P5 CPU 后处理输出
-- `compute_arena_sub_0001[kBufferSize_sub_0001]`：CPU 子图工作区
 
-CPU 读写这些 buffer 更快，尤其是预处理和后处理。
+CPU 读写这块更快，预处理直接从这里的显示帧取数。
 
 ### `.sdram_nocache`（非缓存 SDRAM）
 
@@ -86,7 +83,7 @@ CPU 子图 `compute_sub_0001` 里的 4 次 `Transpose` 是纯布局转换（`[1,
 - `ai_decode_branch` 用映射 `final[w][h][anc][attr] == raw[anc][attr][h][w]` 直接索引（已用 Python 对拍验证）
 - `cpu_us` 归零，`[MODEL]` 的 `cpu=` 应为 0
 
-> ⚠️ `model.c` 里 `compute_arena_sub_0001`、`buf_PartitionedCall_*` 定义已闲置（`--gc-sections` 会回收或浪费少量 SDRAM），后续可清理。
+> ⚠️ `model.c` 里 `compute_arena_sub_0001`、`buf_PartitionedCall_*` 定义已闲置（`--gc-sections` 会回收或浪费少量 SDRAM），后续可清理。——**已于 2026-08-31 彻底删除，见下方清理记录。**
 
 ### 4. 后处理 logit 阈值（免 sigmoid/expf）
 
@@ -111,7 +108,29 @@ objectness 每帧 1500 次 `expf`，改为**反量化到 logit 空间直接比�
 - `model.c` 里 `model_profile_t` 的 `copy_us` 字段从未被赋值，UART 打印的 `copy=` 恒为 0，无参考意义。
 - `RunModelProfiled(false)` 传的 `clean_outputs=false`，NPU 输出不清零（正常，性能考虑）。
 
+## 2026-08-31 代码清理与修正记录
+
+### 1. 删除死代码（已验证编译 + 链接通过）
+
+- `src/models/compute_sub_0001.{c,h}`、`kernel_library_int.{c,h}`、`kernel_library_utils.{c,h}`：CPU 子图 Transpose 废弃后整链已无人调用，连同 `Debug/*/subdir.mk` 里的编译项一并移除（省 ~30KB SDRAM + 编译时间）。
+- `Hardware/qspi_flash_test.{c,h}`：QSPI 读写测试工具，全工程无调用。
+- `model.c/h` 的 `RunModel()`：只有 `RunModelProfiled()` 在被使用。
+- `ai_center_offset_print()`：早先的调试打印，已无人调用；`hal_entry.c` 对应的多余 `#include "ai_center_offset.h"` 一并移除。
+
+### 2. D-Cache 维护方式修正
+
+- `prepare_camera_capture_buffer`：`SCB_CleanInvalidateDCache_by_Addr` → `SCB_InvalidateDCache_by_Addr`。采集缓冲由 CEU（DMA）写入、CPU 只读，启动采集前只需失效（丢弃缓存里的旧行），Clean 反而会把缓存中的陈旧数据写回 SDRAM。
+- `ceu.c` 的 `yuv422_to_rgb888 / yuv422_to_rgb565`：删除了函数内的 `SCB_EnableDCache / SCB_DisableDCache` 开关（在函数里全局开关 DCache 会影响中断/其他模块的缓存一致性，改由调用侧统一管理）。
+
+### 3. 首帧等待改为非阻塞 spinner
+
+`hal_entry` 首帧不再用 `ceu_capture_wait(5000)` 阻塞（spinner 会冻住 5 秒），改为轮询 `g_ceu_completed_buf`、每 ~33ms 重绘一次 spinner，5s 超时后重试一次 kick，仍失败则继续进主循环（断流自愈兜底）。
+
+### 4. 相机显示区域调整（AUTO 界面）
+
+AUTO 模式相机 blit 目标从全屏 480x640 改为 480x600（y600~640 为模式/开始/灯光三按钮控制条，整行不显示相机，按钮零遮挡零闪烁）；REMOTE 模式顶部小窗 480x392。AI 推理仍对整帧 640x480 做，与显示裁剪无关。
+
 ## 后续可继续优化的方向
 
-1. **清理闲置 buffer**：`model.c` 里 `compute_arena_sub_0001`、`buf_PartitionedCall_*` 已不用，可删除并同步 `model.h` 的 extern 声明，省 ~30KB SDRAM。
-2. **NPU 架构层面**：模型从 SDRAM 跑，若下一版模型能塞进片上 SRAM、或提高 NPU 时钟、或降输入分辨率/换更小 backbone，才能把 ~138ms 这个硬成本（NPU 主时间）拦腰砍。软件层面已基本榨干。
+1. **NPU 架构层面**：模型从 SDRAM 跑，若下一版模型能塞进片上 SRAM、或提高 NPU 时钟、或降输入分辨率/换更小 backbone，才能把 ~138ms 这个硬成本（NPU 主时间）拦腰砍。软件层面已基本榨干。
+2. **性能数据待重测**：上板看 UART 的 `[PIPE]`/`[MODEL]` 行，回填本文「性能状态」表。

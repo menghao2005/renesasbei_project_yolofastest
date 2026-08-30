@@ -20,6 +20,12 @@
  *
  * Copyright (C) 2023 Renesas Electronics Corporation. All rights reserved.
  ***********************************************************************************************************************/
+/*----------------------------------------------------------------------------------------------------------------------
+ * 补充说明 : MIPI DSI + GLCDC 显示通路初始化(LCD)与辅助功能。
+ *            - ST7102 面板初始化命令表(g_lcd_init_ydp430_st7102)经 mipi_dsi_push_table 下发;
+ *            - glcdc_callback/mipi_dsi_callback 仅置标志/计数,业务在主循环处理;
+ *            - DWT 周期计数器用于耗时测量;ST7123 触摸中断接入见 gt911.c。
+ *---------------------------------------------------------------------------------------------------------------------*/
 #include "gt911.h"
 #include "mipi_dsi_ep.h"
 #include "board_sdram.h"
@@ -66,6 +72,7 @@ coord_t touch_coordinates[5];
 
 
 
+/* 切换 GLCDC Layer-1 显示缓冲并等待下一 VSYS 生效(双缓冲刷新入口) */
 static void lcd_show_framebuffer(uint16_t * p_framebuffer)
 {
     // lcd_clean_framebuffer(p_framebuffer);
@@ -76,6 +83,7 @@ static void lcd_show_framebuffer(uint16_t * p_framebuffer)
 
 
 
+/* DWT(Cycle Count)微秒级计时:供性能测量使用 */
 void DWT_init();
 uint32_t DWT_get_count();
 void DWT_clean_count();
@@ -86,8 +94,10 @@ uint32_t DWT_count_to_us(uint32_t delta_count);
 void DWT_init()
 {
     DWT->CTRL = 0;
+    /* SCB->DEMCR(bit24 TRCENA):使能 DWT 外设 */
     DWT_DEM |= 1<<24;
     DWT->CYCCNT = 0;
+    /* DWT->CTRL.bit0(CYCCNTENA):启动周期计数 */
     DWT->CTRL |= 1<<0;
 }
 
@@ -102,6 +112,7 @@ void DWT_clean_count()
     DWT->CYCCNT = 0;
 }
 
+/* CPU 主频 480MHz:CYCCNT 每 480 个计数对应 1µs */
 uint32_t DWT_count_to_us(uint32_t delta_count)
 {
     return delta_count/480;
@@ -242,6 +253,7 @@ typedef enum
 color_pattern_t color_p = simple;
 
 //uint16_t color_temp;
+/* 整屏填充指定 RGB565 颜色(测试图案) */
 void show_RGB(uint8_t R, uint8_t G, uint8_t B);
 void show_RGB(uint8_t R, uint8_t G, uint8_t B)
 {
@@ -260,6 +272,7 @@ void show_RGB(uint8_t R, uint8_t G, uint8_t B)
 
 }
 
+/* 整屏灰度渐变测试图案(每行灰度步进 0x0821) */
 void show_GRAY();
 void show_GRAY()
 {
@@ -279,6 +292,7 @@ void show_GRAY()
 }
 
 
+/* 居中显示图片 gImage_qier(222x480,RGB565),四周背景填白后切换缓冲 */
 void show_pic()
 {
     show_pic2();
@@ -381,6 +395,7 @@ void handle_error (fsp_err_t err,  const char * err_str)
     }
 }
 
+/* 本工程自定义的电平翻转:先读引脚电平再写反相电平(供触摸中断翻转调试引脚 P110) */
 void R_IOPORT_PinToggle(ioport_ctrl_t * p_ctrl, bsp_io_port_pin_t pin)
 {
     bsp_io_level_t level;
@@ -452,6 +467,7 @@ uint16_t color_dtcm[1]  = {RGB_565_RED};
 
 
 
+/* ST7102(LCD)硬件复位:按面板手册时序操作复位引脚 P000(高→低→高脉冲) */
 void ST7102_init_HW();
 void ST7102_init_HW()
 {

@@ -4,6 +4,13 @@
  * 公共 8x8 点阵字体 (ASCII 32-126), 仅一份定义, 供 hal_entry.c 与
  * ai_postprocess.c 共用, 避免重复定义导致 Flash 浪费与维护不一致。
  */
+/*
+ * 字模格式: 每字符 8 字节对应自上而下 8 行, 每字节 8 位横向取模,
+ * MSB 在左 (bit7 即最左像素), 1=画点 0=留空; 取第 ch 个可见字符的字模
+ * 从 font_8x8[(ch - 32) * 8] 开始。数组每行行尾附有列注释, 标明该行
+ * 所属的字符码与字面量, 便于比对修改。除 hal_entry.c / ai_postprocess.c
+ * 外, ui_control.c 与 bottom_banner.c 也通过本头文件引用此字库。
+ */
 
 #ifndef __FONT_8X8_H
 #define __FONT_8X8_H

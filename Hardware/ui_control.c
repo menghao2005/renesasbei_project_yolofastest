@@ -227,11 +227,13 @@ static ui_autograb_state_t g_autograb_state = UI_AG_IDLE;
 /* ------------------------------------------------------------------------- */
 /* 底层绘制                                                                   */
 /* ------------------------------------------------------------------------- */
+/* 帧缓冲首地址（RGB565，16bpp；g_hstride 为行跨度像素数） */
 static uint16_t * ui_fb(void)
 {
     return (uint16_t *) gp_frame_buffer;
 }
 
+/* 矩形填充：入参先裁剪到屏幕范围内（负坐标/越界安全），再逐像素写帧缓冲 */
 static void ui_fill_rect(int x, int y, int w, int h, uint16_t color)
 {
     uint16_t * fb = ui_fb();
@@ -252,6 +254,7 @@ static void ui_fill_rect(int x, int y, int w, int h, uint16_t color)
     }
 }
 
+/* 绘制单个 8x8 ASCII 字符：scale 倍放大；每字节为一行、MSB 在左，1=画点 */
 static void ui_draw_char(int px, int py, char ch, uint16_t fg, int scale)
 {
     uint16_t * fb = ui_fb();
@@ -288,6 +291,7 @@ static void ui_draw_char(int px, int py, char ch, uint16_t fg, int scale)
     }
 }
 
+/* ASCII 字符串绘制：逐字符调用 ui_draw_char，水平步进 8*scale */
 static void ui_draw_string(int px, int py, const char * str, uint16_t fg, int scale)
 {
     while (*str)
@@ -377,6 +381,7 @@ static void ui_draw_cn_centered(int cx, int cy, const char * str, uint16_t color
     }
 }
 
+/* 以 (cx,cy) 为中心绘制字符串：自动选择字库（中/英混排）并计算宽度居中 */
 static void ui_draw_string_centered(int cx, int cy, const char * str, uint16_t fg, int scale)
 {
     /* 含中文（UTF-8 首字节 >=0x80）→ 16x16 点阵字库；纯 ASCII → 8x8 字库 */
@@ -590,6 +595,7 @@ static const char * ui_state_label(ui_power_t power)
     }
 }
 
+/* 电源三态对应状态色：绿=运行 / 红=锁定 / 灰=待机 */
 static uint16_t ui_power_color(ui_power_t power)
 {
     switch (power)
@@ -604,6 +610,7 @@ static uint16_t ui_power_color(ui_power_t power)
     }
 }
 
+/* 开关按钮文案：按当前电源态提示下一次动作（开始/停止/继续） */
 static const char * ui_power_label(ui_power_t power)
 {
     switch (power)
@@ -621,6 +628,7 @@ static const char * ui_power_label(ui_power_t power)
 /* ------------------------------------------------------------------------- */
 /* AUTO 界面按钮：MODE（切换时画，顶部不被 blit 覆盖）+ START（每帧画）         */
 /* ------------------------------------------------------------------------- */
+/* MODE 按钮：REMOTE 模式下描边变橙色，提示当前处于遥控界面 */
 static void ui_draw_mode_btn(void)
 {
     ui_draw_button(AUTO_BTN_MODE_X, AUTO_BTN_MODE_Y, AUTO_BTN_MODE_W, AUTO_BTN_MODE_H,
@@ -629,6 +637,7 @@ static void ui_draw_mode_btn(void)
                    0xFFFFU, UI_COLOR_PANEL_L, UI_COLOR_DARK_TEXT);
 }
 
+/* START 按钮：底色与文案随电源三态变化（灰"开始"/绿"停止"/红"继续"） */
 static void ui_draw_start_btn(void)
 {
     ui_draw_button(AUTO_BTN_START_X, AUTO_BTN_START_Y, AUTO_BTN_START_W, AUTO_BTN_START_H,
@@ -719,6 +728,8 @@ static void ui_draw_remote_logo(void)
 
 
 
+/* REMOTE 控制面板全量重绘：背景 + BACK/LOCK + 状态徽章 + 摇杆 + 四个功能按钮 +
+ * 底部双 logo。仅在界面切换/模式切换等时机整体调用；运行中只做局部重绘（防闪屏）。 */
 static void ui_draw_remote_panel(void)
 {
     /* 控制面板背景（从相机小窗下沿 y388 开始，盖掉 y388-392 缝隙残留） */
@@ -786,12 +797,15 @@ static void ui_redraw_screen(void)
 /* ------------------------------------------------------------------------- */
 /* 触摸 hit-test                                                              */
 /* ------------------------------------------------------------------------- */
+/* 点在矩形内判定（含左/上边，不含右/下边） */
 static bool ui_point_in_rect(uint16_t x, uint16_t y, int rx, int ry, int rw, int rh)
 {
     return ((int) x >= rx) && ((int) x < (rx + rw)) &&
            ((int) y >= ry) && ((int) y < (ry + rh));
 }
 
+/* 触摸命中判定：按当前界面返回命中的 UI 元素（ui_hit_t），无命中返回 UI_HIT_NONE。
+ * REMOTE：先查各按钮矩形，再查摇杆底座圆内；AUTO：查模式/开始/灯光三个按钮。 */
 static ui_hit_t ui_hit_test(uint16_t x, uint16_t y)
 {
     if (UI_MODE_REMOTE == g_mode)
@@ -942,6 +956,7 @@ static void ui_draw_auto_ctrl_bar(void)
     ui_draw_light_btn(AUTO_LIGHT_X, AUTO_LIGHT_Y, AUTO_LIGHT_W, AUTO_LIGHT_H);
 }
 
+/* 遥控目标姿态复位到车库位（home），爪子同步为张开，保证按钮显示与实际姿态一致 */
 static void ui_remote_reset_to_home(void)
 {
     g_remote_base    = UI_REMOTE_HOME_BASE;
@@ -951,6 +966,11 @@ static void ui_remote_reset_to_home(void)
     g_gripper_closed = false;
 }
 
+/* 电源三态切换（屏幕 START/LOCK 按钮与语音命令共用）：
+ *   OFF -> ON：AUTO 启动抓取流程 / REMOTE 回 home 后进入运行；
+ *   ON -> LOCKED：底盘停车 + 机械臂冻结（自动流程暂停）；
+ *   LOCKED -> ON：解锁，机械臂从当前位置继续。
+ * 完成后按当前界面重绘：REMOTE 只重绘 LOCK 按钮 + 状态徽章（小区域不闪），AUTO 整屏重绘。 */
 void ui_toggle_power(void)
 {
     switch (g_power)
@@ -1009,6 +1029,9 @@ void ui_toggle_power(void)
     }
 }
 
+/* AUTO <-> REMOTE 界面切换（MODE/BACK 按钮与语音命令共用）：
+ * 停底盘 -> 停抓取流程并冻结残留插值 -> 慢速平滑回 home -> 目标界面进入待机
+ * （UI_POWER_OFF），最后整屏重绘新界面。两个方向的处理逻辑对称。 */
 void ui_toggle_mode(void)
 {
     /* 切换模式前先停底盘（步进电机），防止 AUTO 运行中底盘正在移动时
@@ -1066,6 +1089,9 @@ static bool ui_joy_step_allowed(void)
     return true;
 }
 
+/* 摇杆偏移 -> 三路舵机脉宽步进：带节流（ui_joy_step_allowed）与死区。
+ *   Y 轴：上推=前伸（upper/forearm 减小）、下拉=缩回；X 轴（已反向映射）控制底座转向。
+ * 各步进后按脉宽范围限幅，再下发插值目标 RobotArm_MoveToWristDownTime()。 */
 static void ui_joy_apply(void)
 {
     if (!ui_joy_step_allowed())
@@ -1145,6 +1171,7 @@ static void ui_joy_apply(void)
 /* ------------------------------------------------------------------------- */
 /* 对外接口                                                                   */
 /* ------------------------------------------------------------------------- */
+/* UI 初始化：状态机复位为 AUTO 界面 + 上电待机（UI_POWER_OFF），并整屏重绘 */
 void ui_control_init(void)
 {
     g_mode  = UI_MODE_AUTO;
@@ -1192,6 +1219,10 @@ void ui_control_draw_boot_text(const char * msg)
     __DSB();
 }
 
+/* 主循环每帧调用：触摸事件分发 + 遥控/自动抓取状态机推进。
+ * 按钮均为边沿触发（本次命中且上次未命中才动作一次），天然防长按连发与误触重放；
+ * 摇杆为电平触发（按住持续跟手），仅 REMOTE + 运行中才驱动机械臂；
+ * 自动抓取子状态机（下探->闭合->缩回）靠 RobotArm_IsMoving() 逐步等待到位后推进。 */
 void ui_control_service(void)
 {
     bool     touching = g_touch_updated && (g_touch_count > 0U);
@@ -1357,21 +1388,26 @@ void ui_control_redraw_screen(void)
     __DSB();
 }
 
+/* 当前界面模式：AUTO（自动抓取）或 REMOTE（遥控） */
 ui_mode_t ui_control_get_mode(void)
 {
     return g_mode;
 }
 
+/* 当前电源三态：OFF（待机）/ ON（运行）/ LOCKED（锁定） */
 ui_power_t ui_control_get_power(void)
 {
     return g_power;
 }
 
+/* 是否处于 LOCKED（机械臂冻结、自动流程暂停） */
 bool ui_control_is_locked(void)
 {
     return (UI_POWER_LOCKED == g_power);
 }
 
+/* 返回当前界面相机画面 blit 目标区（区域定义详见 ui_control.h）。
+ * 返回 true=AUTO 界面（hal_entry 据此决定是否画检测框），false=REMOTE 小窗。 */
 bool ui_control_get_camera_rect(int * x, int * y, int * w, int * h)
 {
     if (UI_MODE_REMOTE == g_mode)
@@ -1391,11 +1427,13 @@ bool ui_control_get_camera_rect(int * x, int * y, int * w, int * h)
     return true;
 }
 
+/* 检测计数显示接口：HUD 已移除，空实现保留以兼容旧调用方 */
 void ui_control_set_detection_count(uint32_t count)
 {
     (void) count;   /* HUD 已移除，接口保留 */
 }
 
+/* 语音功能是否开启（REMOTE"语音"按钮切换；关闭后 Asrpro 丢弃命令不执行） */
 bool ui_control_get_voice_enabled(void)
 {
     return g_voice_enabled;
@@ -1406,6 +1444,7 @@ void ui_toggle_power(void);
 void ui_toggle_mode(void);
 void ui_light_toggle(void);
 
+/* 语音触发：爪子闭合（仅 REMOTE 运行中有效；复用当前遥控目标姿态） */
 void ui_gripper_grasp_voice(void)
 {
     extern bool g_gripper_closed;
@@ -1417,6 +1456,7 @@ void ui_gripper_grasp_voice(void)
     ui_draw_hit_btn(UI_HIT_GRASP, false);
 }
 
+/* 语音触发：爪子张开（仅 REMOTE 运行中有效；复用当前遥控目标姿态） */
 void ui_gripper_open_voice(void)
 {
     extern bool g_gripper_closed;
@@ -1431,6 +1471,8 @@ void ui_gripper_open_voice(void)
 /* ---- 语音模块：下抓启动接口 ---- */
 extern ui_autograb_state_t g_autograb_state;
 extern uint16_t g_remote_base, g_remote_upper, g_remote_forearm;
+/* 语音触发一键下抓：启动"下探->闭合->缩回"自动抓取子状态机
+ * （状态机推进在 ui_control_service() 主循环轮询中完成） */
 void ui_autograb_start(void)
 {
     if (UI_POWER_ON != g_power) return;   /* 待机/锁定不启动 */
@@ -1441,6 +1483,7 @@ void ui_autograb_start(void)
     __DSB();
 }
 
+/* 补光灯当前是否点亮（供语音"开灯/关灯"命令判断去抖） */
 bool ui_control_get_light_on(void)
 {
     extern bool g_light_on;

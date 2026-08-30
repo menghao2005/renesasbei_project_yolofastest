@@ -3,6 +3,12 @@
 *
 * SPDX-License-Identifier: BSD-3-Clause
 */
+/*----------------------------------------------------------------------------------------------------------------------
+ * 文件说明  : 板级 SDRAM 初始化与自检。
+ *             - bsp_sdram_init:直接操作 BUS(SDRAMC)寄存器完成 SDR SDRAM 上电初始化
+ *               (行地址偏移 → 初始化序列 → 模式寄存器 LMR → 时序 → 自动刷新 → 开放访问);
+ *             - SDRAMReadWrite32Bit_test:SRAM→SDRAM 32 位读写回环自检(带地址/寄存器诊断打印)。
+ *---------------------------------------------------------------------------------------------------------------------*/
 
 /***********************************************************************************************************************
  * Includes   <System Includes> , "Project Includes"
@@ -145,6 +151,8 @@
  * Private global variables and functions
  **********************************************************************************************************************/
 
+/* SDR SDRAM 控制器初始化:按硬件手册顺序配置 SDADR/SDIR/SDICR/SDCCR/SDMOD/SDTR/SDRFCR;
+ * 各时序宏按 120MHz SDCLK 折算为周期数,见上方宏定义区 */
 void bsp_sdram_init (void)
 {
     /** Set row address offset BEFORE init sequence (SDADR may be locked after INIT) */

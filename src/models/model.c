@@ -61,24 +61,29 @@
 #include "sub_0000_invoke.h"
 #include "bsp_api.h"
 
+/* 推理耗时日志打印间隔 (帧数), 首帧必打 */
 #define MODEL_PROFILE_PRINT_INTERVAL (30U)
 
 extern void DWT_init(void);
 extern uint32_t DWT_get_count(void);
 extern uint32_t DWT_count_to_us(uint32_t delta_count);
 
+/* 最近一次推理的耗时统计 (RunModelProfiled 返回其只读指针) */
 static model_profile_t g_last_model_profile;
 
+/* 由 DWT 起点周期数换算为经过的微秒数 */
 static uint32_t model_profile_elapsed_us(uint32_t start_count)
 {
   return DWT_count_to_us((uint32_t)(DWT_get_count() - start_count));
 }
 
+/* 把从 start_count 到现在经过的微秒数累加到 *p_total_us */
 static void model_profile_add(uint32_t *p_total_us, uint32_t start_count)
 {
   *p_total_us += model_profile_elapsed_us(start_count);
 }
 
+/* 每 MODEL_PROFILE_PRINT_INTERVAL 帧(首帧必打)通过 UART9 打印一次推理耗时 */
 static void model_profile_print_every(const model_profile_t *p_profile)
 {
   static uint32_t s_frame_count = 0U;
@@ -97,12 +102,14 @@ static void model_profile_print_every(const model_profile_t *p_profile)
 
 /* buf_PartitionedCall_* / compute_arena_sub_0001 已删除（Transpose 已省略，后处理直读 raw NPU 输出，省 ~30KB SDRAM） */
 
-  // 模型输入：指向生成代码的 sub_0000_arena，当前仍在 .sdram_nocache。
+/* 模型输入指针: [1,320,320,3] int8 NHWC (320x320 RGB), 由 ai_preprocess_rgb565() 填充。
+ * 指向生成代码的 sub_0000_arena，当前仍在 .sdram_nocache。 */
 int8_t* GetModelInputPtr_serving_default_images_0() {
   return (int8_t*) (sub_0000_arena + sub_0000_address_serving_default_images_0);
 }
 
 
+/* P4 (stride16, 20x20) / P5 (stride32, 10x10) 两分支输出, 供 ai_postprocess 解码。 */
   // 模型输出：P4/P5 直接返回 raw NPU 输出指针（已省略 Transpose，后处理直接读 raw）。
   // P4 raw = model_tf_compat_v1_transpose_6_transpose_70293（[1,3,10,20,20]，12000 字节）
   // P5 raw = model_tf_compat_v1_transpose_2_transpose_70281（[1,3,10,10,10]，3000 字节）
@@ -115,6 +122,8 @@ int8_t* GetModelOutputPtr_PartitionedCall_1_70299() {
 }
 
 
+/* 内部推理: 调用生成代码 sub_0000_invoke() 跑一次完整 NPU 子图; clean_outputs
+ * 透传给 NPU 调用 (true 时清零输出缓冲); p_profile 非 NULL 时统计耗时。 */
 static void run_model_internal(bool clean_outputs, model_profile_t *p_profile) {
   uint32_t start_count;
   uint32_t total_start_count = 0U;
@@ -140,10 +149,8 @@ static void run_model_internal(bool clean_outputs, model_profile_t *p_profile) {
   }
 }
 
-void RunModel(bool clean_outputs) {
-  run_model_internal(clean_outputs, NULL);
-}
-
+/* 对外推理接口: 跑一次推理, 耗时记入 g_last_model_profile 并周期打印,
+ * 返回最近一次的统计结果 (供 hal_entry 汇总到流水线 profiling)。 */
 const model_profile_t * RunModelProfiled(bool clean_outputs) {
   run_model_internal(clean_outputs, &g_last_model_profile);
   model_profile_print_every(&g_last_model_profile);

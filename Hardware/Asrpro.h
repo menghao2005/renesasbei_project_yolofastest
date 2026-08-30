@@ -1,4 +1,11 @@
-﻿#ifndef ASRPRO_H
+﻿/*
+ * Asrpro.h
+ *
+ * ASRPRO 离线语音模块串口协议定义：
+ *   帧格式为 6 字节固定长度（帧头 AA 55 + 命令 CMD + 数据 DATA + 帧尾 0D 0A），
+ *   下方 asr_cmd_t 为语音命令码表。收发/解析/执行实现见 Asrpro.c。
+ */
+#ifndef ASRPRO_H
 #define ASRPRO_H
 
 #include "hal_data.h"
@@ -33,6 +40,11 @@ extern volatile asr_cmd_t  g_asr_cmd;
 extern volatile uint8_t    g_asr_cmd_data;
 extern volatile uint8_t    g_asr_cmd_ready;
 
+/* 接口说明：
+ * ASRPRO_Init()        打开 g_uart0_asrpro 并复位接收状态机/命令缓存（上电调用一次）
+ * ASRPRO_SendMessage() 向语音模块发送字符串（阻塞写）
+ * ASRPRO_RxByte()      逐字节喂入帧解析状态机（仅限 UART 中断回调中调用）
+ * ASRPRO_Process()     主循环调用：取出完整命令并执行对应 UI 动作（见 Asrpro.c） */
 void ASRPRO_Init(void);
 void ASRPRO_SendMessage(const char * p_message);
 void ASRPRO_RxByte(uint8_t byte);

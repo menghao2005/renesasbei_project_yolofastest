@@ -13,7 +13,6 @@
 #include "models/model.h"
 #include "ai_preprocess.h"
 #include "ai_postprocess.h"
-#include "ai_center_offset.h"
 #include "robot_arm.h"
 #include "bottom_banner.h"
 #include "harvest_task.h"
@@ -27,15 +26,21 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
 };
 #endif
 
+/* 单帧 VGA RGB565 图像字节数 (640*480*2) */
 #define CAMERA_FRAME_BYTES   (VGA_WIDTH * VGA_HEIGHT * RGB565_BYTE_PER_PIXEL)
+/* 本帧无新检测时, 上一帧检测结果继续保留显示的帧数 (抗检测抖动) */
 #define AI_RESULT_HOLD_FRAMES   (2U)
 
 /*
- * 相机双缓存放�?cacheable SDRAM�? * CEU 写下一帧时，CPU/NPU 可以同时处理上一帧；
- * 每次重新启动采集前先�?DCache 失效，避�?CPU 读到旧图�? */
+ * 相机双缓冲放在可 cache 的 SDRAM（.sdram 段）。
+ * CEU 写下一帧时，CPU/NPU 可以同时处理上一帧；
+ * 每次重新启动采集前先做 DCache Invalidate，避免 CPU 读到旧数据。
+ */
 uint8_t g_image_vga_sdram[2][CAMERA_FRAME_BYTES]
     BSP_PLACE_IN_SECTION(".sdram") BSP_ALIGN_VARIABLE(32);
 
+/* 采集缓冲准备: 对缓冲区做 DCache Invalidate 并用 DSB/ISB 同步,
+ * 丢弃 CPU 缓存中的旧内容, 保证采集启动后 CPU 读到的是 CEU DMA 新写入的帧 */
 static void prepare_camera_capture_buffer(uint8_t * p_buffer)
 {
     SCB_InvalidateDCache_by_Addr(p_buffer, (int32_t) CAMERA_FRAME_BYTES);
@@ -44,6 +49,8 @@ static void prepare_camera_capture_buffer(uint8_t * p_buffer)
 }
 
 
+/* 忙等 VSYNC 标志置位, 最长 timeout_ms 毫秒; 超时打印日志并返回 false。
+ * (主循环已改为自由轮询, 此函数当前保留备用) */
 static bool wait_vsync_with_timeout(uint32_t timeout_ms)
 {
     uint32_t waited_ms = 0U;
@@ -67,32 +74,37 @@ extern uint32_t DWT_count_to_us(uint32_t delta_count);
 
 #define PIPELINE_PROFILE_PRINT_INTERVAL    (30U)
 
+/* AI 流水线单帧各阶段耗时 (单位 us, 用 DWT 周期计数换算) */
 typedef struct st_pipeline_profile
 {
-    uint32_t ceu_us;
-    uint32_t ceu_kick_us;
-    uint32_t vsync_wait_us;
-    uint32_t blit_us;
-    uint32_t draw_us;
-    uint32_t preprocess_us;
-    uint32_t model_us;
-    uint32_t cpu_us;
-    uint32_t npu_us;
-    uint32_t post_us;
-    uint32_t center_us;
-    uint32_t total_us;
+    uint32_t ceu_us;         /* CEU 帧等待耗时 (当前流水线未单独统计, 恒为 0) */
+    uint32_t ceu_kick_us;    /* 帧处理前 DCache Invalidate 耗时 */
+    uint32_t vsync_wait_us;  /* VSYNC 等待耗时 (当前流水线未单独统计, 恒为 0) */
+    uint32_t blit_us;        /* Dave2D 硬件缩放把相机帧搬上屏的耗时 */
+    uint32_t draw_us;        /* 画检测框 + 更新检测计数 + 浮层重绘耗时 */
+    uint32_t preprocess_us;  /* AI 预处理 (RGB565 -> int8 letterbox) 耗时 */
+    uint32_t model_us;       /* 模型推理总耗时 */
+    uint32_t cpu_us;         /* 推理 CPU 子图耗时 (当前恒为 0) */
+    uint32_t npu_us;         /* 推理 NPU 子图耗时 */
+    uint32_t post_us;        /* AI 后处理 (解码 P4/P5 + NMS) 耗时 */
+    uint32_t center_us;      /* 抓取任务服务 HarvestTask_Service 耗时 */
+    uint32_t total_us;       /* 整帧耗时 (纯帧间隔, 即真实画面帧率) */
 } pipeline_profile_t;
 
+/* 耗时测量起点: 返回当前 DWT 周期计数 */
 static uint32_t pipeline_profile_measure_begin(void)
 {
     return DWT_get_count();
 }
 
+/* 耗时测量结束: 由起点周期数换算为微秒数返回 */
 static uint32_t pipeline_profile_measure_end(uint32_t start_count)
 {
     return DWT_count_to_us((uint32_t) (DWT_get_count() - start_count));
 }
 
+/* 每 PIPELINE_PROFILE_PRINT_INTERVAL 帧(首帧必打)打印一次各阶段耗时与帧率,
+ * 并附带 CEU 中断计数, 用于诊断帧率劣化是 error 风暴还是断流 */
 static void pipeline_profile_print_every(const pipeline_profile_t * p_profile)
 {
     static uint32_t s_frame_count = 0U;
@@ -131,6 +143,7 @@ static void pipeline_profile_print_every(const pipeline_profile_t * p_profile)
     }
 }
 
+/* 舵机节拍定时器回调: 周期调用 RobotArm_Update() 驱动机械臂运动更新 */
 void g_timer_servo_tick_callback(timer_callback_args_t *p_args)
 {
     FSP_PARAMETER_NOT_USED(p_args);
@@ -212,20 +225,23 @@ void hal_entry(void)
      * 当前 AI 主链路：
      * 1) CEU 采集到双缓冲
      * 2) 对最新完整帧做预处理
-     * 3) �?TFLite int8 + Ethos-U55
+     * 3) 跑 TFLite int8 + Ethos-U55 推理
      * 4) 后处理后保留检测结果，画框和中心偏移给机械臂用
      */
+    /* letterbox 信息供后处理做坐标反变换; work 为本帧原始检测,
+     * committed 为对外 (画框/抓取) 使用的稳定结果 */
     ai_letterbox_info_t letterbox_info;
     ai_detection_t detections_work[AI_POST_MAX_DETECT];
     ai_detection_t detections_committed[AI_POST_MAX_DETECT];
     uint32_t num_detections_work = 0U;
     uint32_t num_detections_committed = 0U;
     uint32_t detection_hold_frames = 0U;
-    uint8_t * p_camera_buffers[2] = { g_image_vga_sdram[0], g_image_vga_sdram[1] };
+    uint8_t * p_camera_buffers[2] = { g_image_vga_sdram[0], g_image_vga_sdram[1] };  /* 相机双缓冲指针表 */
     uint32_t frame_index_display = 0U;
     uint32_t frame_index_capture = 1U;
     uint32_t s_last_frame_cyc = 0U;   /* 最近一次相机帧处理时刻（DWT，断流检测，2s） */
     uint32_t s_prev_frame_end_cyc = 0U;  /* 上一帧处理完成时的 DWT 周期（真实帧率测量） */
+    /* 模型输入 (320x320x3 int8) 与 P4/P5 两分支 raw 输出缓冲指针 */
     int8_t *p_model_input = GetModelInputPtr_serving_default_images_0();
     int8_t *p_model_p4    = GetModelOutputPtr_PartitionedCall_0_70298();
     int8_t *p_model_p5    = GetModelOutputPtr_PartitionedCall_1_70299();

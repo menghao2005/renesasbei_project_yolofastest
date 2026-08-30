@@ -27,6 +27,10 @@ typedef enum e_ui_power
 void ui_control_init(void);      /* 画 AUTO 界面（banner + 品牌条 + 按钮），上电调用一次 */
 void ui_control_service(void);   /* 主循环每帧调用：触摸检测 + 状态机 + 遥控步进 + 浮层重绘 */
 
+/* 读取 UI 状态机当前快照（只读，供 hal_entry/语音模块等查询） */
+/* ui_control_get_mode()  -> 当前界面：AUTO 自动抓取 / REMOTE 遥控
+ * ui_control_get_power() -> 当前电源三态：OFF 待机 / ON 运行 / LOCKED 锁定
+ * ui_control_is_locked() -> 是否处于 LOCKED（机械臂冻结、流程暂停） */
 ui_mode_t  ui_control_get_mode(void);
 ui_power_t ui_control_get_power(void);
 bool       ui_control_is_locked(void);
@@ -54,6 +58,15 @@ void       ui_control_draw_boot_text(const char * msg);      /* 上电初始化�
 bool ui_control_get_camera_rect(int * x, int * y, int * w, int * h);
 
 /* 语音模块接口 */
+/* （Asrpro.c 解析语音命令后调用，行为详见 ui_control.c 实现）
+ * ui_control_get_voice_enabled() -> 语音功能是否开启（屏幕"语音"按钮切换）
+ * ui_control_get_light_on()      -> 补光灯是否点亮
+ * ui_autograb_start()            -> 语音"下抓"：启动自动抓取子状态机
+ * ui_toggle_power()              -> 电源三态切换：开始/停止/继续
+ * ui_toggle_mode()               -> AUTO <-> REMOTE 界面切换
+ * ui_light_toggle()              -> 补光灯开关翻转（P109 高电平亮）
+ * ui_gripper_grasp_voice()       -> 语音"抓取"：爪子闭合
+ * ui_gripper_open_voice()        -> 语音"松开"：爪子张开 */
 bool ui_control_get_voice_enabled(void);
 bool ui_control_get_light_on(void);
 void ui_autograb_start(void);

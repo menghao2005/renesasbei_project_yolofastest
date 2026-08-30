@@ -26,6 +26,16 @@
  * Copyright (C) 2023 Renesas Electronics Corporation. All rights reserved.
  ***********************************************************************************************************************/
 
+/*----------------------------------------------------------------------------------------------------------------------
+ * 文件说明  : CEU(摄像头扩展单元)采集驱动封装。
+ *             - 采集流程:ceu_init → ceu_capture_start → ceu_capture_wait(ceu_operation 一步封装);
+ *             - 中断级 kick:FRAME_END 回调内立即启动下一帧并切换双缓冲(g_image_vga_sdram[2]),
+ *               主循环只处理 g_ceu_completed_buf,AI 推理期间不丢帧;
+ *             - 断流自愈:ceu_recover 关闭并重开 CEU 清除内部状态;
+ *             - 同步极性尝试:ceu_apply_sync_try 把 HDPOL/VDPOL/HDSEL/VDSEL 组合写入 CAMCR;
+ *             - 软件转换:yuv422_to_rgb888 / yuv422_to_rgb565(YUV422 → RGB,供显示/AI 使用)。
+ *---------------------------------------------------------------------------------------------------------------------*/
+
 #include "ceu.h"
 //#include "ov7725.h"
 #include "ov5640.h"
@@ -92,11 +102,14 @@ extern uint8_t g_image_vga_sdram[2][VGA_WIDTH * VGA_HEIGHT * RGB565_BYTE_PER_PIX
 static volatile uint8_t * s_capture_buf = NULL;           /* 当前正在采集的缓冲（上次 kick 的） */
 volatile uint8_t * g_ceu_completed_buf = NULL;            /* 刚采完待处理的帧 */
 
+/* 记录当前正在采集的缓冲地址(供 FRAME_END 回调做双缓冲切换),启动采集/恢复后由外部调用 */
 void ceu_set_capture_buf(uint8_t * buf)
 {
     s_capture_buf = buf;
 }
 
+/* 把 g_ceu_sync_try_index 对应的同步极性组合(HD/VD 极性 HDPOL/VDPOL 与选择位
+ * HDSEL/VDSEL)写入 CAMCR 寄存器;组合变化时才打印一次,便于确认当前生效的同步配置 */
 static void ceu_apply_sync_try(void)
 {
     static uint32_t last_printed_index = 0xFFFFFFFFU;
@@ -127,6 +140,7 @@ static void ceu_apply_sync_try(void)
     }
 }
 
+/* 同步尝试索引前进一步(循环遍历 16 种极性组合) */
 static void ceu_advance_sync_try(void)
 {
     g_ceu_sync_try_index++;
@@ -136,6 +150,7 @@ static void ceu_advance_sync_try(void)
     }
 }
 
+/* 判断事件是否属于硬错误(CRAM 溢出、HD/VD 失配、VD 错误、总线防火墙) */
 static bool ceu_event_is_error(ceu_event_t event)
 {
     return (0U != (event & (CEU_EVENT_CRAM_OVERFLOW |
@@ -145,12 +160,14 @@ static bool ceu_event_is_error(ceu_event_t event)
                             CEU_EVENT_FIREWALL)));
 }
 
+/* 判断事件是否属于同步缺失警告(HD/VD 丢失,此时帧可能仍在正常采集) */
 static bool ceu_event_is_sync_warning(ceu_event_t event)
 {
     return (0U != (event & (CEU_EVENT_HD_MISSING |
                             CEU_EVENT_VD_MISSING)));
 }
 
+/* 按位解析并打印 CEU 事件标志(超时/异常诊断用) */
 static void ceu_print_event(ceu_event_t event)
 {
     DBG_LOG("CEU event=0x%08lX", (uint32_t) event);
@@ -169,6 +186,8 @@ static void ceu_print_event(ceu_event_t event)
     DBG_LOG("\r\n");
 }
 
+/* 恢复流程核心:关闭再重新打开 CEU 以清除内部卡死状态;
+ * Open 会用配置默认值重写 CAMCR,故之后必须重新应用同步极性(见函数内注释) */
 static void ceu_reopen_after_timeout(void)
 {
     static uint32_t s_recover_count = 0U;
@@ -281,6 +300,14 @@ fsp_err_t ceu_init(uint8_t * const p_buffer, uint32_t width, uint32_t height)
     return FSP_SUCCESS;
 }
 
+/*******************************************************************************************************************//**
+ *  @brief      轮询等待一帧采集完成
+ *  @param[out] used_ms    : 实际等待的毫秒数(可为 NULL)
+ *  @param[in]  timeout_ms : 超时时间(毫秒)
+ *  @retval     FSP_SUCCESS       收到 FRAME_END,正常收帧
+ *  @retval     FSP_ERR_TIMEOUT   超时无回调,打印诊断信息并重开 CEU 恢复
+ *  @retval     FSP_ERR_ABORTED   被非 FRAME_END 事件终止
+ **********************************************************************************************************************/
 static fsp_err_t ceu_wait_for_capture_complete(uint32_t *used_ms, uint32_t timeout_ms)
 {
     uint32_t wait_budget_ms = timeout_ms;
@@ -360,6 +387,7 @@ static fsp_err_t ceu_wait_for_capture_complete(uint32_t *used_ms, uint32_t timeo
     return FSP_SUCCESS;
 }
 
+/* 启动一次采集:清完成标志、按当前索引应用同步极性,再调用底层启动 API */
 fsp_err_t ceu_capture_start(uint8_t * const p_buffer)
 {
     g_capture_ready = false;
@@ -372,6 +400,7 @@ fsp_err_t ceu_capture_start(uint8_t * const p_buffer)
     return R_CEU_CaptureStart(&g_ceu_vga_ctrl, p_buffer);
 }
 
+/* 阻塞等待当前采集完成(封装内部轮询函数) */
 fsp_err_t ceu_capture_wait(uint32_t *used_ms, uint32_t timeout_ms)
 {
     return ceu_wait_for_capture_complete(used_ms, timeout_ms);
@@ -417,8 +446,8 @@ fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t *used_ms)
     return err;
 }
 
-// YUV422 non-swapped data format : Y0 U0 Y1 V2 Y2 U2 Y3 V4 Y4 U4 Y5 V6 Y6 U6 Y7鈥�
-// YUV422 swapped data format     : U0 Y0 V0 Y1 U2 Y2 V2 Y3 U4 Y4 V4 Y5 U6 Y6 V6鈥�
+// YUV422 non-swapped data format : Y0 U0 Y1 V2 Y2 U2 Y3 V4 Y4 U4 Y5 V6 Y6 U6 Y7…
+// YUV422 swapped data format     : U0 Y0 V0 Y1 U2 Y2 V2 Y3 U4 Y4 V4 Y5 U6 Y6 V6…
 
 //*****************************//
 // Pixel Number | Pixel Values //
@@ -431,6 +460,10 @@ fsp_err_t ceu_operation (uint8_t * const p_buffer, uint32_t *used_ms)
 //*****************************//
 #define RANGE_LIMIT(x)        (x > 255 ? 255 : (x < 0 ? 0 : x))
 
+/* YUV422(swapped 格式 U0 Y0 V0 Y1...)→ RGB888(32 位)软件转换。
+ * 系数用移位近似浮点:103/256≈0.403、88/256≈0.344、183/256≈0.714、198/256≈0.770,
+ * 即 R=Y+1.403V'、G=Y-0.344U'-0.714V'、B=Y+1.770U'。U/V 为相邻两像素共用,
+ * 故每处理完两个像素 U/V 指针才各前进 4 字节(columns 奇数时)。 */
 void yuv422_to_rgb888(const void* inbuf, void* outbuf, uint16_t width, uint16_t height)
 {
     uint32_t rows, columns;
@@ -451,7 +484,7 @@ void yuv422_to_rgb888(const void* inbuf, void* outbuf, uint16_t width, uint16_t 
     x_start = 0;
     y_start = 0;
 
-    // YUV422 swapped data format : U0 Y0 V0 Y1 U2 Y2 V2 Y3 U4 Y4 V4 Y5 U6 Y6 V6鈥�
+    // YUV422 swapped data format : U0 Y0 V0 Y1 U2 Y2 V2 Y3 U4 Y4 V4 Y5 U6 Y6 V6…
     y_pos = 1;
     u_pos = 0;
     v_pos = 2;
@@ -503,6 +536,8 @@ void yuv422_to_rgb888(const void* inbuf, void* outbuf, uint16_t width, uint16_t 
 
 }
 
+/* YUV422(swapped)→ RGB565:转换公式与上方 RGB888 版本相同,
+ * 仅最后按 R5/G6/B5 位域打包为 16 位像素(GLCDC 显存格式) */
 void yuv422_to_rgb565(const void* inbuf, void* outbuf, uint16_t width, uint16_t height)
 {
     uint32_t rows, columns;
@@ -569,17 +604,19 @@ void yuv422_to_rgb565(const void* inbuf, void* outbuf, uint16_t width, uint16_t 
     }
 
 }
+/* 另一版 YUV422→RGB565:BT.601 有限范围公式(Y 先减 16、U/V 减 128 后乘系数),
+ * 一次处理相邻两个像素(共用一对 U/V),结果为 RGB565 */
 void YUVtoRGB565(uint8_t *yuv, uint16_t *rgb565, int width, int height) {
     int i, j;
         for (i = 0; i < height; i++) {
             for (j = 0; j < width; j += 2) {
-                // 浠嶻UV鏁版嵁涓彁鍙栨瘡涓儚绱犵殑Y銆乁鍜孷鍊�
+                // 从YUV数据中提取每个像素的Y、U和V值
                 uint8_t y0 = yuv[i * width * 2 + j * 2];
                 uint8_t u = yuv[i * width * 2 + j * 2 + 1];
                 uint8_t y1 = yuv[i * width * 2 + j * 2 + 2];
                 uint8_t v = yuv[i * width * 2 + j * 2 + 3];
 
-                // YUV杞崲涓篟GB
+                // YUV转换为RGB
                 int c0 = y0 - 16;
                 int c1 = y1 - 16;
                 int d = u - 128;
@@ -602,7 +639,7 @@ void YUVtoRGB565(uint8_t *yuv, uint16_t *rgb565, int width, int height) {
                 if (g1 > 0x3F) g1 = 0x3F;
                 if (b1 > 0x1F) b1 = 0x1F;
 
-                // 灏哛GB鍊肩粍鍚堟垚RGB565鏍煎紡骞朵繚瀛�
+                // 将RGB值组合成RGB565格式并保存
                 rgb565[i * width + j] = (r0 << 11) | (g0 << 5) | b0;
                 rgb565[i * width + j + 1] = (r1 << 11) | (g1 << 5) | b1;
             }
@@ -610,6 +647,8 @@ void YUVtoRGB565(uint8_t *yuv, uint16_t *rgb565, int width, int height) {
 }
 
 
+/* 摄像头信号探针:GPIO 轮询 20000 次统计 VIO_CLK(P414)/HD(P415)/VD(P708)的高电平
+ * 占比与翻转次数,并读取引脚 PFS 复用配置,用于排查排线接触/引脚复用等硬件问题 */
 void camera_signal_probe(void)
 {
     enum { SAMPLE_COUNT = 20000 };

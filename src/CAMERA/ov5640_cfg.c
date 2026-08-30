@@ -3,11 +3,20 @@
 *
 * SPDX-License-Identifier: BSD-3-Clause
 */
+/*----------------------------------------------------------------------------------------------------------------------
+ * 文件说明  : OV5640 寄存器配置表(纯数据文件)。
+ *             - default_regs              : ArduCAM 风格默认表 {地址高字节, 地址低字节, 值},本工程未引用;
+ *             - ov5640_init_cfg           : 主初始化表(PLL/时序/窗口/AEC 等,以 DVP VGA 覆盖块收尾);
+ *             - ov5640_rgb565_cfg         : RGB565 输出格式配置表;
+ *             - ov5640_jpeg_cfg           : JPEG 输出格式配置表;
+ *             - ov5640_auto_focus_firmware: 自动对焦 DSP 固件。
+ *---------------------------------------------------------------------------------------------------------------------*/
 #include "ov5640_cfg.h"
 #include "ov5640_reg.h"
 
 #define OMV_OV5640_PLL_CTRL2    (0x64)
 #define OMV_OV5640_PLL_CTRL3    (0x13)
+/* --- 默认寄存器表:行格式 {寄存器地址高字节, 寄存器地址低字节, 值}(ArduCAM 移植,本工程未引用,保留备用) --- */
 const uint8_t default_regs[][3] = {
 
 // https://github.com/ArduCAM/Arduino/blob/master/ArduCAM/ov5640_regs.h
@@ -304,6 +313,9 @@ const uint8_t default_regs[][3] = {
 
     { 0x00, 0x00, 0x00 }
 };
+/* --- 主初始化寄存器表:ov5640_init() 上电后逐条写入({寄存器地址, 值}) ---
+ * 覆盖系统时钟 PLL、镜像方向(0x3820/0x3821)、ISP 窗口、DVP 时序、AEC/AGC 等;
+ * 末尾的 "Final DVP VGA RGB565 30 fps override" 块保证最终时序不被前面条目改写 */
 ov5640_reg_cfg_t ov5640_init_cfg[257] = {
 	{0x3008, 0x42}, //{0x3008, 0x42},
 	{0x3103, 0x03}, //{0x3103, 0x03},
@@ -832,9 +844,9 @@ ov5640_reg_cfg_t ov5640_init_cfg[257] = {
 //    {OV5640_SYSTEM_CTROL0, 0x02},
 //  };
 
-/* OV5640妯″潡杈撳嚭RGB565瀵勫瓨鍣ㄩ厤缃〃
+/* OV5640模块输出RGB565寄存器配置表
  * 30FPS
- * 鏈€澶ф敮鎸?280*800鐨凴GB565鍥惧儚杈撳嚭
+ * 最大支持1280*800的RGB565图像输出
  */ov5640_reg_cfg_t ov5640_rgb565_cfg[51] = { // VGA RGB565 30 fps
     {0x4300, 0x6F}, //0x6F
     {0x501F, 0x01},
@@ -897,9 +909,9 @@ ov5640_reg_cfg_t ov5640_init_cfg[257] = {
 //    {OV5640_FORMAT_MUX_CTRL, 0x01},
 //};
 
-/* OV5640妯″潡杈撳嚭JPEG瀵勫瓨鍣ㄩ厤缃〃
+/* OV5640模块输出JPEG寄存器配置表
  * 7.5FPS
- * 鏈€澶ф敮鎸?592*1944鐨凧PEG鍥惧儚杈撳嚭
+ * 最大支持2592*1944的JPEG图像输出
  */
 ov5640_reg_cfg_t ov5640_jpeg_cfg[41] = {
     {0x4300, 0x30},
@@ -945,7 +957,8 @@ ov5640_reg_cfg_t ov5640_jpeg_cfg[41] = {
     {0x3503, 0x00},
 };
 
-/* OV5640鑷姩瀵圭劍鍥轰欢 */
+/* OV5640自动对焦固件 */
+/* 共 4077 字节,由 ov5640_auto_focus_init() 从 0x8000(OV5640_FW_DOWNLOAD_ADDR)起逐字节写入 DSP */
 uint8_t ov5640_auto_focus_firmware[4077] = {
     0x02, 0x0F, 0xD6, 0x02, 0x0A, 0x39, 0xC2, 0x01, 0x22, 0x22, 0x00, 0x02, 0x0F, 0xB2, 0xE5, 0x1F,
     0x70, 0x72, 0xF5, 0x1E, 0xD2, 0x35, 0xFF, 0xEF, 0x25, 0xE0, 0x24, 0x4E, 0xF8, 0xE4, 0xF6, 0x08,

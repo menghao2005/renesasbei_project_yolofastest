@@ -1,29 +1,36 @@
 /*
  * ai_preprocess.c
  *
- * RGB565 camera image -> letterbox resize -> RGB int8 NHWC [1,320,320,3]
- * Quantization for the current TFLite int8 model is simply q = pixel - 128.
+ * AI 预处理: RGB565 相机图像 -> letterbox 等比缩放 -> RGB int8 NHWC [1,320,320,3]。
+ * 缩放后的图像居中放置, 四周空白填充 AI_LETTERBOX_PAD, 同时把 letterbox 变换
+ * 参数 (scale/pad/原图尺寸) 回传给后处理, 用于把检测框坐标映射回原图。
+ * 当前 TFLite int8 模型的输入量化就是简单镜像: q = pixel - 128。
  */
 
 #include "ai_preprocess.h"
 #include <stddef.h>
 #include <string.h>
 
+/* 5bit 分量 -> 8bit: v*255/31 四舍五入的定点近似 (v*527+23 再右移 6) */
 static inline uint8_t r5_to_r8(uint8_t v5)
 {
     return (uint8_t) ((v5 * 527U + 23U) >> 6);
 }
 
+/* 6bit 分量 -> 8bit: v*255/63 四舍五入的定点近似 (v*259+33 再右移 6) */
 static inline uint8_t g6_to_g8(uint8_t v6)
 {
     return (uint8_t) ((v6 * 259U + 33U) >> 6);
 }
 
+/* 0~255 像素值 -> 模型 int8 量化值: q = pixel - 128 (zero_point=-128, scale=1/255) */
 static inline int8_t u8_to_model_q(uint8_t v)
 {
     return (int8_t) ((int16_t) v - 128);
 }
 
+/* 5bit 红/蓝分量的 int8 量化查表 (懒初始化): 预先把 32 种取值换算好,
+ * 避免逐像素做乘减运算 */
 static const int8_t * ai_preprocess_r5_table(void)
 {
     static int8_t s_r5_q[32];
@@ -41,6 +48,7 @@ static const int8_t * ai_preprocess_r5_table(void)
     return s_r5_q;
 }
 
+/* 6bit 绿分量的 int8 量化查表 (懒初始化): 同 r5 表, 64 种取值 */
 static const int8_t * ai_preprocess_g6_table(void)
 {
     static int8_t s_g6_q[64];
@@ -58,6 +66,12 @@ static const int8_t * ai_preprocess_g6_table(void)
     return s_g6_q;
 }
 
+/*
+ * VGA 640x480 专用快路径 (仅被 ai_preprocess_rgb565 调用):
+ * - scale=0.5 隔行隔列采样: 640x480 -> 320x240, 宽度正好占满 320 列 (pad_x=0),
+ *   高度方向上下各补 40 行 AI_LETTERBOX_PAD 灰边, 拼成 320x320 输入;
+ * - 填写 letterbox 信息 (scale/pad/源尺寸) 供后处理做坐标反变换。
+ */
 static void ai_preprocess_rgb565_vga_fast(const uint8_t * p_rgb565,
                                           int8_t        * p_model_in,
                                           ai_letterbox_info_t * p_info)
@@ -77,11 +91,13 @@ static void ai_preprocess_rgb565_vga_fast(const uint8_t * p_rgb565,
         p_info->src_height = 480U;
     }
 
+    /* 先把上下各 40 行 pad 填成灰边对应的 int8 值 */
     memset(p_model_in, (uint8_t) pad_val, dst_row_bytes * pad_rows);
     memset(p_model_in + (dst_row_bytes * (pad_rows + 240U)),
            (uint8_t) pad_val,
            dst_row_bytes * pad_rows);
 
+    /* 主体: 每 2 行取 1 行、每 2 列取 1 列 (scale=0.5), 查表写 RGB 三通道 */
     for (uint32_t dy = 0; dy < 240U; dy++)
     {
         const uint16_t * p_src_row =
@@ -100,6 +116,15 @@ static void ai_preprocess_rgb565_vga_fast(const uint8_t * p_rgb565,
     }
 }
 
+/*
+ * 通用预处理入口 (对外接口):
+ * - 640x480 输入直接走上面的快路径;
+ * - 其他尺寸走 letterbox 通用路径: 取 x/y 缩放系数较小者等比缩放, 图像居中,
+ *   四周填 AI_LETTERBOX_PAD, 整个输出缓冲先 memset 成 pad 值再覆盖有效区;
+ * - 最近邻映射用 Q16 定标: inv_scale_q16 = 65536/scale, 目标坐标 dx 反查源坐标
+ *   sx = (dx*inv_scale_q16 + 32768) >> 16 (四舍五入), 并越界钳位;
+ * - x 方向映射表 x_map 只预计算一次, 每行复用; 颜色分量经 r5/g6 查表转 int8。
+ */
 void ai_preprocess_rgb565(const uint8_t * p_rgb565,
                           uint32_t        src_width,
                           uint32_t        src_height,
@@ -155,6 +180,7 @@ void ai_preprocess_rgb565(const uint8_t * p_rgb565,
             p_info->src_height = src_height;
         }
 
+        /* Q16 定点的 1/scale; 预计算 x 方向最近邻映射表, 行循环内直接查表 */
         inv_scale_q16 = (uint32_t) (65536.0f / scale + 0.5f);
         memset(p_model_in, (uint8_t) pad_val, AI_INPUT_COUNT);
 

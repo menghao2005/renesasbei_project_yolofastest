@@ -1,8 +1,9 @@
 /*
  * ai_postprocess.c
  *
- * Decode int8 P4/P5 outputs, run NMS, and map detections back to the
- * original camera image coordinates.
+ * AI 后处理: 解码 NPU 输出的 int8 P4/P5 两分支 (YOLO-fastest anchor 解码),
+ * 按类别做 NMS 去重, 并把 letterbox 坐标反变换回原始相机图像坐标;
+ * 另含在 GLCDC framebuffer 上绘制检测框/中心十字标记/中文类别标签的函数。
  */
 
 #define CN_FONT_IMPLEMENT
@@ -16,7 +17,7 @@
  * 摄像头 VGA 640x480 经 Dave2D 缩放到 480x640 铺到 framebuffer 顶部,
  * 因此 ai_detection_t 的 VGA 坐标需经过缩放映射才对应 framebuffer 像素位置 */
 extern uint8_t *gp_frame_buffer;
-extern uint32_t g_hstride;   /* framebuffer 姣忚鍍忕礌姝ラ暱 */
+extern uint32_t g_hstride;   /* framebuffer 每行像素步长 */
 
 /* FB_CAM_W/H, FB_SCALE_X/Y, FB_BOX_OFFSET_X/Y 已移至 ai_postprocess.h
  * (VGA 640x480 -> framebuffer 480x640 映射), 供多模块共享。 */
@@ -146,7 +147,7 @@ static void ai_decode_branch(const int8_t *p_out,
                 float tw = ai_dequantize_int8(raw[2 * g2], output_scale, output_zero_point);
                 float th = ai_dequantize_int8(raw[3 * g2], output_scale, output_zero_point);
 
-                /* Same decode as the original float path. */
+                /* 解码公式与原 float 路径一致 */
                 float cx_m = (sx + (float)w) / (float)grid * (float)AI_INPUT_WIDTH;
                 float cy_m = (sy + (float)h) / (float)grid * (float)AI_INPUT_HEIGHT;
                 float w_m  = expf(tw) * anchor[anc * 2];
@@ -513,10 +514,10 @@ void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
         0xFFE0, 0x07FF   /* yellow, cyan for extra 2 classes */
     };
 
-    const int line = 2;  /* 绾垮 */
+    const int line = 2;  /* 线宽(像素) */
 
 #if AI_DRAW_GEOMETRY_DEBUG
-    /* Screen/camera display center marker: yellow cross at 480x600 center. */
+    /* 屏幕/相机显示区中心标记: 480x600 中心的黄色十字 (几何校准用) */
     {
         const int cx = FB_CAM_W / 2;
         const int cy = FB_CAM_H / 2;
@@ -553,7 +554,7 @@ void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
         uint16_t color = box_color[dets[i].cls % AI_OUT_NUM_CLS];
 
 #if AI_DRAW_GEOMETRY_DEBUG
-        /* Detection box center marker: magenta cross. */
+        /* 检测框中心标记: 品红色十字 (几何校准用) */
         {
             int cx = (x0 + x1) / 2;
             int cy = (y0 + y1) / 2;
@@ -580,7 +581,7 @@ void ai_draw_detections(const ai_detection_t *dets, uint32_t num_det)
             }
         }
 
-                /* label above box (Chinese 16x16, 2x, black bg white text) */
+                /* 框上方标签 (中文 16x16 字模, 2x 放大, 黑底白字) */
         {
             const char *name = g_ai_class_names[dets[i].cls % AI_OUT_NUM_CLS];
             int name_w = 0;

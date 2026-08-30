@@ -1,3 +1,6 @@
+/*
+ * harvest_task.h — 自动抓取流程任务接口。
+ */
 #ifndef __HARVEST_TASK_H__
 #define __HARVEST_TASK_H__
 
@@ -17,7 +20,9 @@ extern "C" {
 #define HARVEST_TASK_TREE          (1U)
 #define HARVEST_TASK_SELECT        HARVEST_TASK_GROUND
 
+/* 复位采集流程到起点（按 .c 中 HARVEST_ENABLE_GROUND_SEQUENCE 决定起点） */
 void HarvestTask_Init(void);
+/* 主循环周期性调用：按本帧检测结果推进自动抓取状态机 */
 void HarvestTask_Service(const ai_detection_t * p_dets, uint32_t num_dets);
 /* 停止抓取流程并复位内部状态（切到 REMOTE 或待机时调用），
  * 防止残留的定时 move 在模式切换后继续驱动机械臂。 */

@@ -58,21 +58,24 @@
 // Arenas for NPU units
 extern uint8_t sub_0000_arena[kArenaSize_sub_0000];
 
+/* 单次推理耗时统计 (单位: 微秒) */
 typedef struct st_model_profile
 {
-    uint32_t total_us;
-    uint32_t cpu_us;
-    uint32_t npu_us;
-    uint32_t copy_us;
+    uint32_t total_us;   /* 推理总耗时 */
+    uint32_t cpu_us;     /* CPU 子图耗时 (Transpose 已省略, 当前恒为 0) */
+    uint32_t npu_us;     /* NPU 子图耗时 */
+    uint32_t copy_us;    /* 输入拷贝耗时 (当前恒为 0, 仅兼容保留) */
 } model_profile_t;
 
-void RunModel(bool clean_outputs);
+/* 带耗时统计地跑一次推理 (clean_outputs=true 时清零 NPU 输出缓冲), 返回最近一次耗时 */
 const model_profile_t * RunModelProfiled(bool clean_outputs);
 
   // Model input pointers
+/* 模型输入缓冲指针 ([1,320,320,3] int8 NHWC), 由 ai_preprocess 填充, 详见 model.c */
 int8_t* GetModelInputPtr_serving_default_images_0();
 
   // Model output pointers
+/* P4/P5 两分支 raw NPU 输出指针, 供 ai_postprocess 解码, 详见 model.c */
 int8_t* GetModelOutputPtr_PartitionedCall_0_70298();
 int8_t* GetModelOutputPtr_PartitionedCall_1_70299();
 

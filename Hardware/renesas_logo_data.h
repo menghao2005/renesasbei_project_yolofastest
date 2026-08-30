@@ -1,3 +1,13 @@
+/*
+ * renesas_logo_data.h
+ *
+ * Renesas（瑞萨）logo 点阵图数据：170x73 像素（RENESAS_LOGO_WIDTH/HEIGHT），
+ * RGB565 格式每像素 1 个 uint16_t，按行优先存储（像素 (x,y) 位于
+ * g_renesas_logo_pixels[y * 宽 + x]）。
+ * 0x0001（RENESAS_LOGO_TRANSPARENT_RGB565）为透明键色，绘制时跳过该像素
+ * 以透出底图。定义 RENESAS_LOGO_IMPLEMENT 的编译单元（bottom_banner.c）
+ * 分配数据存储，其余单元只看到 extern 声明。
+ */
 #ifndef RENESAS_LOGO_DATA_H_
 #define RENESAS_LOGO_DATA_H_
 
@@ -1045,7 +1055,7 @@ const uint16_t g_renesas_logo_pixels[RENESAS_LOGO_WIDTH * RENESAS_LOGO_HEIGHT] =
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,
     0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0001,
     0x0001, 0x0001,
-};
+};
 #else
 extern const uint16_t g_renesas_logo_pixels[];
 #endif

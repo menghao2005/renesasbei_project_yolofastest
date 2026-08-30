@@ -9,6 +9,12 @@
  *  Created on: Sep 5, 2023
  *      Author: a5123412
  */
+/*----------------------------------------------------------------------------------------------------------------------
+ * 文件说明  : D/AVE 2D(Dave2D)硬件加速图形封装。
+ *             - graphics_init:解析 GLCDC 分辨率配置并初始化 2D 引擎(帧缓冲绑定、混合/抗锯齿参数);
+ *             - graphics_draw_frame / graphics_blit_scale / graphics_blit_scale_region:
+ *               硬件 blit(拷贝/缩放,16.4 定点尺寸),用于相机帧 → 显示帧的缩放搬运。
+ *---------------------------------------------------------------------------------------------------------------------*/
 
 #include "hal_data.h"
 #include "common_utils.h"
@@ -33,6 +39,7 @@ uint16_t g_hz_size, g_vr_size;
 uint32_t g_buffer_size, g_hstride;
 uint8_t * gp_frame_buffer = NULL;
 
+/* Dave2D 初始化:解析分辨率/缓冲配置,打开 2D 设备并绑定帧缓冲、配置渲染参数 */
 void graphics_init(void)
 {
     /* Get LCDC configuration */
@@ -155,6 +162,8 @@ void graphics_blit_scale(const void * pSrc, int SrcWidth, int SrcHeight,
     d2_flushframe(*_d2_handle_user);
 }
 
+/* 区域缩放 Blit:源图 (src_x,src_y,src_w,src_h) → 目标 (dst_x,dst_y,dst_w,dst_h),
+ * 坐标均相对整屏帧缓冲;尺寸/偏移以 16.4 定点数传给硬件 */
 void graphics_blit_scale_region(const void * pSrc, int SrcWidth, int SrcHeight,
                                 int src_x, int src_y, int src_w, int src_h,
                                 void * pDst, int DstStride, int DstWidth, int DstHeight,

@@ -25,6 +25,7 @@ __attribute__((naked)) void HardFault_Handler(void)
     );
 }
 
+/* BusFault naked 入口（寄存器捕获流程同 HardFault_Handler） */
 __attribute__((naked)) void BusFault_Handler(void)
 {
     __asm volatile (
@@ -37,6 +38,7 @@ __attribute__((naked)) void BusFault_Handler(void)
     );
 }
 
+/* UsageFault naked 入口（寄存器捕获流程同 HardFault_Handler） */
 __attribute__((naked)) void UsageFault_Handler(void)
 {
     __asm volatile (
@@ -49,6 +51,7 @@ __attribute__((naked)) void UsageFault_Handler(void)
     );
 }
 
+/* MemManage naked 入口（寄存器捕获流程同 HardFault_Handler） */
 __attribute__((naked)) void MemManage_Handler(void)
 {
     __asm volatile (
@@ -98,6 +101,7 @@ void fault_entry(uint32_t * frame, uint32_t exc_return)
         SEGGER_RTT_printf(0, "  [-%02d] 0x%08X\r\n", i, (unsigned int) v);
     }
 
+    /* dump 完成后原地停机（中断已全局关闭），等待 RTT 上位机/调试器读取现场 */
     while (1)
     {
         ;

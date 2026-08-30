@@ -1,4 +1,16 @@
 ﻿/* cn_font.h - 16x16 汉字点阵子集（PIL+SimSun 生成，横向取模，MSB 在前） */
+/*
+ * 字模格式与索引方式：
+ *   - 尺寸 16x16，每字模 32 字节（CN_FONT_BYTES）：每行 16 像素占 2 字节
+ *     （高字节在前），自上而下共 16 行；第 idx 个字模起始于
+ *     g_cn_glyphs[idx * CN_FONT_BYTES]。
+ *   - 横向取模、MSB 在左：字节最高位对应该行最左像素，1=画点 0=跳过。
+ *   - 仅收录 UI 用到的 45 个汉字（CN_FONT_COUNT），索引表 g_cn_font_index[]
+ *     把汉字的 UTF-8 编码（3 字节）映射为字模下标 idx；绘制时逐项比对
+ *     utf8[3] 命中后取 idx（见 ui_control.c 的 ui_draw_cn_centered()）。
+ *   - 定义 CN_FONT_IMPLEMENT 的编译单元（bottom_banner.c）分配两表存储，
+ *     其余单元只看到 extern 声明。
+ */
 #ifndef CN_FONT_H_
 #define CN_FONT_H_
 #include <stdint.h>

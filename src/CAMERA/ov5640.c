@@ -3,6 +3,15 @@
 *
 * SPDX-License-Identifier: BSD-3-Clause
 */
+/*----------------------------------------------------------------------------------------------------------------------
+ * 文件说明  : OV5640 摄像头传感器驱动。
+ *             通过 I2C(camera_i2c_api 封装)读写 16 位寄存器,提供:
+ *             - 上电时序 / 软复位 / 芯片 ID 校验 / 寄存器初始化(ov5640_init);
+ *             - DVP VGA RGB565 15fps 时序配置(ov5640_config_dvp_vga_rgb565_15fps);
+ *             - 自动对焦固件下载、单次/连续对焦(ov5640_auto_focus_*);
+ *             - 灯光/饱和度/亮度/对比度/色相/特效/曝光/锐度/镜像/测试图案等 ISP 效果设置;
+ *             - 输出格式(RGB565/JPEG)与窗口尺寸设置。长寄存器表写入期间经 spinner 回调刷新 UI。
+ *---------------------------------------------------------------------------------------------------------------------*/
 #include "ov5640.h"
 #include "ov5640_cfg.h"
 //#include "ov5640_sccb.h"
@@ -121,6 +130,7 @@ static uint8_t ov5640_read_reg(uint16_t reg)
     return dat;
 }
 
+/* 打印关键寄存器当前值(系统时钟/时序/窗口尺寸/极性等),用于核对配置是否生效 */
 void ov5640_debug_dump_regs(void)
 {
     static const uint16_t regs[] =
@@ -249,6 +259,11 @@ void ov5640_config_dvp_vga_rgb565_15fps(void)
     for (int sp = 0; sp < 2; sp++) { ov5640_spin_tick(0U, 1U); delay_ms(25); }
 }
 
+/**
+ * @brief       读取 0x3800~0x3807 寄存器,计算 ISP 输入窗口尺寸
+ * @param       无
+ * @retval      无
+ */
 static void ov5640_get_isp_input_size(void)
 {
     uint8_t reg3800;
@@ -466,6 +481,7 @@ uint8_t ov5640_init(void)
  * @retval      OV5640_EOK     : OV5640模块自动对焦初始化成功
  *              OV5640_ETIMEOUT: OV5640模块下载固件超时
  */
+/* 加载队友基线 QQVGA RGB565 寄存器序列(含逐条延时项),并记录输出分辨率 */
 uint8_t ov5640_init_qqvga_rgb565_slow(void)
 {
     typedef struct st_ov5640_reg_delay
@@ -494,6 +510,12 @@ uint8_t ov5640_init_qqvga_rgb565_slow(void)
     return OV5640_EOK;
 }
 
+/**
+ * @brief       下载自动对焦固件到 DSP 并等待固件启动完成
+ * @param       无
+ * @retval      OV5640_EOK     : 固件下载并启动成功
+ *              OV5640_ETIMEOUT: 等待固件就绪超时
+ */
 uint8_t ov5640_auto_focus_init(void)
 {
     uint32_t fw_index;
@@ -1830,6 +1852,8 @@ uint8_t ov5640_set_output_size(uint16_t width, uint16_t height)
     return OV5640_EOK;
 }
 
+/* 缩短帧周期(0x380E/0x380F)并压低最大曝光行数(0x3A02/0x3A03/0x3A14/0x3A15),
+ * 以牺牲曝光余量换取更高帧率 */
 void ov5640_set_vga_rgb565_high_fps(void)
 {
     /* Shorter frame period to favor sensor fps over exposure headroom. */
@@ -1841,6 +1865,8 @@ void ov5640_set_vga_rgb565_high_fps(void)
     ov5640_write_reg(0x3A15, 0xC4);
 }
 
+/* 夜间(低照度)VGA 模式:降低像素时钟、放宽 AEC 上/下限(0x3A08~0x3A0E),
+ * 用更长的曝光时间换取暗光下的亮度 */
 void OV5640_set_night_mode_VGA(){
     ov5640_write_reg(0x3034 ,0x1a);
     ov5640_write_reg(0x3035 ,0x21);

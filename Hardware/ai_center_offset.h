@@ -52,10 +52,4 @@ bool ai_center_offset_calc(const ai_detection_t *dets,
                            uint32_t              num_det,
                            ai_center_offset_t    *p_out);
 
-/*
- * 把当前差值通过 printf 输出 (串口)。
- * 无检测时打印 "no detection"。
- */
-void ai_center_offset_print(const ai_center_offset_t *p_off);
-
 #endif /* __AI_CENTER_OFFSET_H */

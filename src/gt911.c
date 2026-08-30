@@ -305,6 +305,10 @@ static fsp_err_t st7123_i2c_read(uint16_t reg, uint8_t *buf, uint32_t len)
     return FSP_SUCCESS;
 }
 
+/*******************************************************************************************************************//**
+ * @brief      Write ST7123 registers. Register addresses are 16-bit, big-endian; data up to 8 bytes per frame.
+ * @retval     FSP_SUCCESS : Upon successful operation, otherwise: failed
+ **********************************************************************************************************************/
 static fsp_err_t st7123_i2c_write(uint16_t reg, const uint8_t * buf, uint32_t len)
 {
     fsp_err_t err = FSP_SUCCESS;

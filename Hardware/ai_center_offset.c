@@ -5,8 +5,6 @@
  */
 
 #include "ai_center_offset.h"
-#include "Uart9_Debug.h"
-#include <stdio.h>
 #include <string.h>
 
 /* 显示区中心 (显示空间): 上半部分 480x640 的中心 */
@@ -60,23 +58,4 @@ bool ai_center_offset_calc(const ai_detection_t *dets,
         *p_out = res;
     }
     return true;
-}
-
-void ai_center_offset_print(const ai_center_offset_t *p_off)
-{
-    const ai_center_offset_t *o = (p_off != NULL) ? p_off : &g_ai_center_offset;
-
-    if (!o->valid) {
-        DBG_LOG("[OFFSET] no detection\r\n");
-        return;
-    }
-
-    const char *name = "?";
-    if (o->cls < AI_OUT_NUM_CLS) {
-        name = g_ai_class_names[o->cls];
-    }
-
-    /* dx>0 右, dy>0 下 */
-    DBG_LOG("[OFFSET] %s score=%.2f dx=%+.1f dy=%+.1f (box_cx=%.1f box_cy=%.1f)\r\n",
-           name, o->score, o->dx, o->dy, o->box_cx, o->box_cy);
 }

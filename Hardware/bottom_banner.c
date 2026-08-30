@@ -1,3 +1,14 @@
+/*
+ * bottom_banner.c
+ *
+ * AUTO 界面底部 banner（480x160，固定画在 y640-800）绘制：
+ *   深蓝渐变底 + 固定伪随机白色噪点 + 瑞萨 logo（左上）+ 电赛 logo（右上）+
+ *   "RENESAS" / "MODEL:YOLOFASTEST" 两行文字（各带 2px 偏移阴影）。
+ *
+ * 本文件同时是 font_8x8.h / bottom_logo_data.h / renesas_logo_data.h 的
+ * 唯一实现单元（三个 *_IMPLEMENT 宏在此定义，点阵与图数据只在这里分配存储），
+ * 其他编译单元仅通过 extern 声明引用，避免数据重复定义浪费 Flash。
+ */
 #include "bottom_banner.h"
 
 #define BOTTOM_LOGO_IMPLEMENT
@@ -62,6 +73,7 @@ static void fb_draw_string(uint16_t *fb, uint32_t stride,
     }
 }
 
+/* RGB565 两色线性混合：mix 0-255（0=全 a，255=全 b），用于竖向渐变行色计算 */
 static uint16_t blend_rgb565(uint16_t a, uint16_t b, uint32_t mix)
 {
     uint32_t ar = (a >> 11) & 0x1FU;
@@ -77,6 +89,7 @@ static uint16_t blend_rgb565(uint16_t a, uint16_t b, uint32_t mix)
     return (uint16_t) ((r << 11) | (g << 5) | blue);
 }
 
+/* 整幅 RGB565 图像逐像素拷贝到 (px,py)：等于透明键色的像素跳过（底色透出） */
 static void fb_draw_image_rgb565(uint16_t *fb, uint32_t stride,
                                  int px, int py,
                                  const uint16_t *pixels,
@@ -97,6 +110,11 @@ static void fb_draw_image_rgb565(uint16_t *fb, uint32_t stride,
     }
 }
 
+/* 绘制底部 banner（无返回值）：
+ * 参数 fb —— RGB565 帧缓冲首地址；stride —— 行跨度（像素数）。
+ * 过程：1) 逐行渐变底色并按固定散列 (x*17+y*29)%211 撒白色噪点；
+ *       2) 两行文字各画两遍（先 2px 偏移阴影色、再白色正文）形成立体字；
+ *       3) 左上角画瑞萨 logo、右上角画电赛 logo（透明色跳过）。 */
 void bottom_banner_draw(uint16_t *fb, uint32_t stride)
 {
     const uint32_t bottom_top = 640U;
@@ -120,6 +138,9 @@ void bottom_banner_draw(uint16_t *fb, uint32_t stride)
         }
     }
 
+    /* 阴影/正文颜色与排版参数：brand_scale=4 画 "RENESAS"，
+     * model_scale=3 画 "MODEL:YOLOFASTEST"，gap 为两行间距，
+     * block_top 为文字块起始 y；两行各先画 (x+2,y+2) 阴影再画正文。 */
     const uint16_t shadow = 0x1082;
     const uint16_t text = 0xFFFF;
     const int brand_scale = 4;
